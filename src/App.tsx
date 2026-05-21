@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { CSSProperties, FormEvent } from 'react'
+import type { FormEvent, KeyboardEvent } from 'react'
 import './App.css'
 
 type SeatStatus = 'available' | 'selected' | 'reserved'
@@ -12,133 +12,127 @@ type Reservation = {
   createdAt: string
 }
 
-type SeatRow = {
-  seats: number[]
-  offset?: number
-  gapAfter?: boolean
-}
-
 type SeatSection = {
   id: string
   name: string
-  className: string
   count: number
-  rows: SeatRow[]
   wheelchairSeats?: number[]
 }
 
-type SeatOverlay = {
+type SeatPoint = {
   seatId: string
-  label: string
+  sectionId: string
+  sectionName: string
+  number: number
   x: number
   y: number
-  wheelchair?: boolean
+  wheelchair: boolean
 }
 
 const STORAGE_KEY = 'bookingwang.reservations.v1'
-
-function serpentineRows(start: number, end: number, columns: number): SeatRow[] {
-  const rows: SeatRow[] = []
-  for (let first = start; first <= end; first += columns) {
-    const row = Array.from({ length: columns }, (_, index) => first + index).filter((seat) => seat <= end)
-    rows.push({ seats: rows.length % 2 === 0 ? row : [...row].reverse() })
-  }
-  return rows
-}
-
-const GA_ROWS: SeatRow[] = [
-  { seats: [1, 2], offset: 78 },
-  { seats: [6, 5, 4, 3], offset: 58 },
-  { seats: [7, 8, 9, 10, 11], offset: 42 },
-  { seats: [17, 16, 15, 14, 13, 12], offset: 28 },
-  { seats: [18, 19, 20, 21, 22, 23, 24], offset: 16 },
-  { seats: [32, 31, 30, 29, 28, 27, 26, 25], offset: 6 },
-  { seats: [33, 34, 35, 36, 37, 38, 39, 40, 41, 42], offset: 0 },
-  { seats: [51, 50, 49, 48, 47, 46, 45, 44, 43], offset: 0 },
-  { seats: [52, 53, 54, 55, 56, 57, 58, 59, 60], offset: 10 },
-  { seats: [66, 65, 64, 63, 62, 61], offset: 38 },
-  { seats: [67, 68, 69], offset: 70 },
-  { seats: [70], offset: 92, gapAfter: true },
-]
-
-const RA_ROWS: SeatRow[] = [
-  { seats: [1, 2], offset: 0 },
-  { seats: [6, 5, 4, 3], offset: 0 },
-  { seats: [7, 8, 9, 10, 11], offset: 0 },
-  { seats: [17, 16, 15, 14, 13, 12], offset: 0 },
-  { seats: [18, 19, 20, 21, 22, 23, 24], offset: 0 },
-  { seats: [32, 31, 30, 29, 28, 27, 26, 25], offset: 0 },
-  { seats: [33, 34, 35, 36, 37, 38, 39, 40, 41, 42], offset: 0 },
-  { seats: [51, 50, 49, 48, 47, 46, 45, 44, 43], offset: 10 },
-  { seats: [52, 53, 54, 55, 56, 57, 58, 59, 60], offset: 20 },
-  { seats: [66, 65, 64, 63, 62, 61], offset: 44 },
-  { seats: [67, 68, 69], offset: 42 },
-  { seats: [70], offset: 14, gapAfter: true },
-]
+const VIEWBOX_WIDTH = 1000
+const VIEWBOX_HEIGHT = 789
 
 const SECTIONS: SeatSection[] = [
-  { id: 'GA', name: '가열', className: 'section-left-wing', count: 70, rows: GA_ROWS },
-  {
-    id: 'NA',
-    name: '나열',
-    className: 'section-center-yellow',
-    count: 125,
-    rows: [...serpentineRows(1, 120, 10), { seats: [121, 122, 123, 124, 125] }],
-    wheelchairSeats: [121, 122, 123, 124, 125],
-  },
-  { id: 'DA', name: '다열', className: 'section-center-blue', count: 130, rows: serpentineRows(1, 130, 10) },
-  { id: 'RA', name: '라열', className: 'section-right-wing', count: 70, rows: RA_ROWS },
+  { id: 'GA', name: '가열', count: 70 },
+  { id: 'NA', name: '나열', count: 125, wheelchairSeats: [121, 122, 123, 124, 125] },
+  { id: 'DA', name: '다열', count: 130 },
+  { id: 'RA', name: '라열', count: 70 },
 ]
 
 const SECTION_BY_ID = Object.fromEntries(SECTIONS.map((section) => [section.id, section]))
 
-function buildSeatIdBySection(sectionId: string, seat: number) {
+const GA_ROWS = [
+  [1, 2],
+  [6, 5, 4, 3],
+  [7, 8, 9, 10, 11],
+  [17, 16, 15, 14, 13, 12],
+  [18, 19, 20, 21, 22, 23, 24],
+  [32, 31, 30, 29, 28, 27, 26, 25],
+  [33, 34, 35, 36, 37, 38, 39, 40, 41, 42],
+  [51, 50, 49, 48, 47, 46, 45, 44, 43],
+  [52, 53, 54, 55, 56, 57, 58, 59, 60],
+  [66, 65, 64, 63, 62, 61],
+  [67, 68, 69],
+  [70],
+]
+
+const GA_X = [218, 196, 176, 155, 134, 116, 98, 82, 83, 143, 165, 232]
+const GA_Y = [285, 307, 329, 352, 376, 401, 426, 451, 475, 501, 526, 607]
+
+const RA_ROWS = [
+  [1, 2],
+  [6, 5, 4, 3],
+  [7, 8, 9, 10, 11],
+  [17, 16, 15, 14, 13, 12],
+  [18, 19, 20, 21, 22, 23, 24],
+  [32, 31, 30, 29, 28, 27, 26, 25],
+  [33, 34, 35, 36, 37, 38, 39, 40, 41, 42],
+  [51, 50, 49, 48, 47, 46, 45, 44, 43],
+  [52, 53, 54, 55, 56, 57, 58, 59, 60],
+  [66, 65, 64, 63, 62, 61],
+  [67, 68, 69],
+  [70],
+]
+
+const RA_X = [732, 731, 731, 731, 731, 731, 731, 752, 752, 752, 752, 727]
+const RA_Y = [285, 307, 329, 352, 376, 401, 426, 451, 475, 501, 526, 607]
+
+function buildSeatId(sectionId: string, seat: number) {
   return `${sectionId}-${seat.toString().padStart(3, '0')}`
 }
 
-function makeOverlaySeat(sectionId: string, seat: number, x: number, y: number): SeatOverlay {
+function makePoint(sectionId: string, seat: number, x: number, y: number): SeatPoint {
   const section = SECTION_BY_ID[sectionId]
   return {
-    seatId: buildSeatIdBySection(sectionId, seat),
-    label: `${section.name} ${seat}번`,
+    seatId: buildSeatId(sectionId, seat),
+    sectionId,
+    sectionName: section.name,
+    number: seat,
     x,
     y,
     wheelchair: section.wheelchairSeats?.includes(seat) ?? false,
   }
 }
 
-function makeGridOverlay(sectionId: string, x: number, y: number, dx: number, dy: number): SeatOverlay[] {
-  const section = SECTION_BY_ID[sectionId]
-  return section.rows.flatMap((row, rowIndex) =>
-    row.seats.map((seat, seatIndex) => makeOverlaySeat(sectionId, seat, x + seatIndex * dx, y + rowIndex * dy)),
+function makeWing(sectionId: string, rows: number[][], starts: number[], yValues: number[]) {
+  return rows.flatMap((row, rowIndex) =>
+    row.map((seat, seatIndex) => makePoint(sectionId, seat, starts[rowIndex] + seatIndex * 19, yValues[rowIndex])),
   )
 }
 
-function makeWingOverlay(sectionId: string, x: number, y: number, dx: number, dy: number, offsetScale: number): SeatOverlay[] {
-  const section = SECTION_BY_ID[sectionId]
-  return section.rows.flatMap((row, rowIndex) =>
-    row.seats.map((seat, seatIndex) =>
-      makeOverlaySeat(sectionId, seat, x + (row.offset ?? 0) * offsetScale + seatIndex * dx, y + rowIndex * dy),
-    ),
-  )
+function makeSerpentine(sectionId: string, count: number, x: number, y: number, dx: number, dy: number, columns = 10) {
+  const points: SeatPoint[] = []
+  for (let seat = 1; seat <= count; seat += columns) {
+    const rowIndex = Math.floor((seat - 1) / columns)
+    const rowSeats = Array.from({ length: Math.min(columns, count - seat + 1) }, (_, index) => seat + index)
+    const visualSeats = rowIndex % 2 === 0 ? rowSeats : [...rowSeats].reverse()
+
+    visualSeats.forEach((seatNumber, visualIndex) => {
+      points.push(makePoint(sectionId, seatNumber, x + visualIndex * dx, y + rowIndex * dy))
+    })
+  }
+  return points
 }
 
-const OVERLAY_SEATS: SeatOverlay[] = [
-  ...makeWingOverlay('GA', 9.6, 31.8, 1.53, 2.72, 0.09),
-  ...makeGridOverlay('NA', 29.1, 25.9, 1.53, 2.56),
-  ...makeGridOverlay('DA', 50.6, 24.6, 1.53, 2.56),
-  ...makeWingOverlay('RA', 72.4, 31.8, 1.53, 2.72, 0.09),
-]
-
-function buildSeatId(section: SeatSection, seat: number) {
-  return `${section.id}-${seat.toString().padStart(3, '0')}`
+function makeNa() {
+  const main = makeSerpentine('NA', 120, 306, 266, 18.4, 22.4)
+  const wheelchairs = [121, 122, 123, 124, 125].map((seat, index) => makePoint('NA', seat, 304 + index * 36.8, 538))
+  return [...main, ...wheelchairs]
 }
+
+function makeDa() {
+  return makeSerpentine('DA', 130, 517, 255, 18.4, 22.4)
+}
+
+const SEAT_POINTS = [...makeWing('GA', GA_ROWS, GA_X, GA_Y), ...makeNa(), ...makeDa(), ...makeWing('RA', RA_ROWS, RA_X, RA_Y)]
+
+const SEAT_POINT_BY_ID = Object.fromEntries(SEAT_POINTS.map((seat) => [seat.seatId, seat]))
 
 function seatDisplayName(seatId: string) {
-  const [sectionId, number] = seatId.split('-')
-  const section = SECTIONS.find((item) => item.id === sectionId)
-  if (!section || !number) return seatId
-  return `${section.name} ${Number(number)}번`
+  const seat = SEAT_POINT_BY_ID[seatId]
+  if (!seat) return seatId
+  return `${seat.sectionName} ${seat.number}번`
 }
 
 function loadReservations(): Record<string, Reservation> {
@@ -176,6 +170,12 @@ function App() {
       phone: existing?.phone ?? '',
       note: existing?.note ?? '',
     })
+  }
+
+  function selectSeatFromKeyboard(event: KeyboardEvent<SVGRectElement>, seatId: string) {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    selectSeat(seatId)
   }
 
   function persist(next: Record<string, Reservation>) {
@@ -246,39 +246,6 @@ function App() {
     URL.revokeObjectURL(url)
   }
 
-  function renderSectionChooser(section: SeatSection) {
-    return (
-      <div className="seat-picker-section" key={section.id}>
-        <div className="picker-section-title">
-          <strong>{section.name}</strong>
-          <span>{section.count}석</span>
-        </div>
-        <div className="seat-picker-grid" style={{ '--columns': section.id === 'GA' || section.id === 'RA' ? 7 : 10 } as CSSProperties}>
-          {Array.from({ length: section.count }, (_, index) => {
-            const seatNumber = index + 1
-            const seatId = buildSeatId(section, seatNumber)
-            const status = seatStatus(seatId)
-            const isWheelchair = section.wheelchairSeats?.includes(seatNumber) ?? false
-
-            return (
-              <button
-                type="button"
-                key={seatId}
-                className={`seat-picker-button seat-${status} ${isWheelchair ? 'seat-wheelchair' : ''}`}
-                onClick={() => selectSeat(seatId)}
-                aria-pressed={selectedSeat === seatId}
-                aria-label={`${seatDisplayName(seatId)} ${status}`}
-                title={seatDisplayName(seatId)}
-              >
-                {isWheelchair ? '♿' : seatNumber}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-    )
-  }
-
   return (
     <main className="app-shell">
       <section className="booking-panel" aria-label="BookingWang seat reservation">
@@ -299,31 +266,32 @@ function App() {
         </div>
 
         <div className="venue-map" aria-label="seat map">
-          <div className="venue-image-frame">
-            <img className="venue-reference-image" src={seatingChartUrl} alt="진해문화센터 공연장 좌석 배치도" />
-            <div className="seat-overlay-layer" aria-label="좌석 상태 오버레이">
-              {OVERLAY_SEATS.map((seat) => {
-                const status = seatStatus(seat.seatId)
-                return (
-                  <button
-                    type="button"
-                    key={seat.seatId}
-                    className={`overlay-seat overlay-${status} ${seat.wheelchair ? 'overlay-wheelchair' : ''}`}
-                    style={{ left: `${seat.x}%`, top: `${seat.y}%` }}
-                    onClick={() => selectSeat(seat.seatId)}
-                    aria-pressed={selectedSeat === seat.seatId}
-                    aria-label={`${seat.label} ${status}`}
-                    title={seat.label}
-                  />
-                )
-              })}
-            </div>
-          </div>
+          <svg className="venue-svg" viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`} role="img" aria-label="진해문화센터 공연장 좌석 배치도">
+            <image href={seatingChartUrl} x="0" y="0" width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} preserveAspectRatio="xMidYMid meet" />
+            {SEAT_POINTS.map((seat) => {
+              const status = seatStatus(seat.seatId)
+              return (
+                <rect
+                  key={seat.seatId}
+                  className={`svg-seat svg-seat-${status} ${seat.wheelchair ? 'svg-seat-wheelchair' : ''}`}
+                  x={seat.x - 7}
+                  y={seat.y - 7}
+                  width="14"
+                  height="14"
+                  rx="2"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${seatDisplayName(seat.seatId)} ${status}`}
+                  onClick={() => selectSeat(seat.seatId)}
+                  onKeyDown={(event) => selectSeatFromKeyboard(event, seat.seatId)}
+                />
+              )
+            })}
+          </svg>
         </div>
 
         <div className="legend">
           <span><i className="dot available-dot" />Available</span>
-          <span><i className="dot yellow-dot" />Center</span>
           <span><i className="dot selected-dot" />Selected</span>
           <span><i className="dot reserved-dot" />Reserved</span>
           <span><i className="dot wheelchair-dot" />Wheelchair</span>
@@ -382,12 +350,6 @@ function App() {
           )}
         </div>
 
-        <div className="card seat-picker-card">
-          <p className="eyebrow">Seat Picker</p>
-          <h2>좌석 번호 선택</h2>
-          <div className="seat-picker-list">{SECTIONS.map(renderSectionChooser)}</div>
-        </div>
-
         {showAdmin && (
           <div className="card admin-card">
             <div className="admin-heading">
@@ -427,3 +389,4 @@ function App() {
 }
 
 export default App
+
