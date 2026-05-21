@@ -159,6 +159,24 @@ def optimize_offset(mask: np.ndarray, seats: list[Seat], radius: int = 14) -> tu
     return best
 
 
+# These offsets are calibrated against the 3.15 Art Center source image and the
+# browser-rendered overlay. The raw OpenCV optimizer is kept as diagnostics, but
+# unconstrained per-block maxima can drift a section away from the visual chart.
+CALIBRATED_OFFSETS: dict[str, tuple[int, int]] = {
+    "O-L": (0, 0),
+    "O-C": (0, 0),
+    "O-R": (0, 0),
+    "1A": (12, -5),
+    "1B": (-2, -4),
+    "1C": (-12, -5),
+    "1D": (0, 0),
+    "1E": (0, 0),
+    "2A": (-1, 0),
+    "2B": (2, 0),
+    "2C": (-1, 0),
+}
+
+
 def art315_specs() -> dict[str, list[Seat]]:
     return {
         "O-L": grid(GridSpec("O-L", "오케스트라박스 좌측", 16, 238, 168, 14.5, 17, 8, 11, 10)),
@@ -232,12 +250,14 @@ def draw_overlay(image_path: Path, seats: list[Seat], output: Path) -> None:
     image.save(output)
 
 
-def build_art315(image_path: Path, ts_output: Path, overlay_output: Path, report_output: Path) -> None:
+def build_art315(image_path: Path, ts_output: Path, overlay_output: Path, report_output: Path, free_optimize: bool = False) -> None:
     mask = color_mask(image_path)
     optimized: list[Seat] = []
     report = []
     for key, base_seats in art315_specs().items():
-        offset_x, offset_y, score = optimize_offset(mask, base_seats)
+        raw_offset_x, raw_offset_y, raw_score = optimize_offset(mask, base_seats)
+        offset_x, offset_y = (raw_offset_x, raw_offset_y) if free_optimize else CALIBRATED_OFFSETS[key]
+        score = overlap_score(mask, base_seats, offset_x, offset_y)
         moved = [
             Seat(
                 seat.seat_id,
@@ -253,7 +273,18 @@ def build_art315(image_path: Path, ts_output: Path, overlay_output: Path, report
             for seat in base_seats
         ]
         optimized.extend(moved)
-        report.append({"block": key, "offsetX": offset_x, "offsetY": offset_y, "score": round(score, 4), "seats": len(moved)})
+        report.append(
+            {
+                "block": key,
+                "offsetX": offset_x,
+                "offsetY": offset_y,
+                "score": round(score, 4),
+                "rawOffsetX": raw_offset_x,
+                "rawOffsetY": raw_offset_y,
+                "rawScore": round(raw_score, 4),
+                "seats": len(moved),
+            }
+        )
 
     write_ts(optimized, ts_output)
     draw_overlay(image_path, optimized, overlay_output)
@@ -268,9 +299,10 @@ def main() -> None:
     parser.add_argument("--ts-output", type=Path, default=Path("src/generated/art315Seats.ts"))
     parser.add_argument("--overlay-output", type=Path, default=Path("../OpenClaw_Work_Artifacts/Bookingwang/seatmap-pipeline/art315-overlay.png"))
     parser.add_argument("--report-output", type=Path, default=Path("../OpenClaw_Work_Artifacts/Bookingwang/seatmap-pipeline/art315-report.json"))
+    parser.add_argument("--free-optimize", action="store_true", help="Use unconstrained OpenCV offsets instead of calibrated production offsets.")
     args = parser.parse_args()
 
-    build_art315(args.image, args.ts_output, args.overlay_output, args.report_output)
+    build_art315(args.image, args.ts_output, args.overlay_output, args.report_output, args.free_optimize)
 
 
 if __name__ == "__main__":
