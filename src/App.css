@@ -48,6 +48,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  overflow: hidden;
   min-width: 0;
   padding: 18px;
   border-radius: 8px;
@@ -448,6 +449,16 @@ textarea {
 }
 
 @media (max-width: 720px) {
+  .app-shell {
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  .booking-panel,
+  .card {
+    width: 100%;
+  }
+
   h1 {
     font-size: 23px;
   }
@@ -458,6 +469,19 @@ textarea {
   }
 
   .venue-map {
+    width: 100%;
+    min-width: 0;
+    padding: 14px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .auditorium-outline {
+    width: 920px;
     min-width: 920px;
+  }
+
+  .legend {
+    overflow-x: auto;
   }
 }
