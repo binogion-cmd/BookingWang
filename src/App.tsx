@@ -47,8 +47,6 @@ type VenueConfig = {
   height: number
   stats: string[]
   seats: SeatPoint[]
-  coordinateOffsetX?: number
-  coordinateOffsetY?: number
 }
 
 const VIEWBOX_WIDTH = 1000
@@ -166,8 +164,6 @@ const VENUES: Record<string, VenueConfig> = {
     image: 'art315-seating-2x.jpg',
     width: 1000,
     height: 1141,
-    coordinateOffsetX: -50,
-    coordinateOffsetY: 0,
     stats: ['1층 834석', '2층 250석', '오케스트라박스 54석', '휠체어석 20석'],
     seats: art315Seats,
   },
@@ -319,10 +315,7 @@ function App() {
   }
 
   function calibratedSeatPoint(seat: SeatPoint) {
-    return calibration[seat.seatId] ?? {
-      x: seat.x + (venue.coordinateOffsetX ?? 0),
-      y: seat.y + (venue.coordinateOffsetY ?? 0),
-    }
+    return calibration[seat.seatId] ?? { x: seat.x, y: seat.y }
   }
 
   function mapEventPoint(event: MouseEvent<SVGSVGElement>) {
