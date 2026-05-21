@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { CSSProperties, FormEvent } from 'react'
 import './App.css'
 
 type SeatStatus = 'available' | 'selected' | 'reserved'
@@ -12,13 +12,56 @@ type Reservation = {
   createdAt: string
 }
 
-const ROWS = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
-const SEATS_PER_ROW = 12
-const AISLE_AFTER = 6
+type SeatSection = {
+  id: string
+  name: string
+  floor: string
+  className: string
+  count: number
+  columns: number
+  startAt?: number
+  wheelchair?: number
+}
+
 const STORAGE_KEY = 'bookingwang.reservations.v1'
 
-function buildSeatId(row: string, seat: number) {
-  return `${row}${seat.toString().padStart(2, '0')}`
+const ORCHESTRA: SeatSection = {
+  id: 'OR',
+  name: '0열 오케스트라 박스',
+  floor: 'stage',
+  className: 'section-orchestra',
+  count: 54,
+  columns: 26,
+}
+
+const FIRST_FLOOR: SeatSection[] = [
+  { id: '1A', name: 'A열', floor: '1층', className: 'section-wing', count: 281, columns: 12, wheelchair: 10 },
+  { id: '1B', name: 'B열', floor: '1층', className: 'section-center', count: 272, columns: 14, wheelchair: 2 },
+  { id: '1C', name: 'C열', floor: '1층', className: 'section-wing', count: 281, columns: 12, wheelchair: 10 },
+]
+
+const SIDE_BOXES: SeatSection[] = [
+  { id: '1D', name: 'D열', floor: '1층 측면', className: 'section-sidebox', count: 12, columns: 1 },
+  { id: '1E', name: 'E열', floor: '1층 측면', className: 'section-sidebox', count: 12, columns: 1 },
+]
+
+const SECOND_FLOOR: SeatSection[] = [
+  { id: '2A', name: 'A열', floor: '2층', className: 'section-wing', count: 83, columns: 14 },
+  { id: '2B', name: 'B열', floor: '2층', className: 'section-center', count: 84, columns: 14 },
+  { id: '2C', name: 'C열', floor: '2층', className: 'section-wing', count: 83, columns: 14 },
+]
+
+const ALL_SECTIONS = [ORCHESTRA, ...FIRST_FLOOR, ...SIDE_BOXES, ...SECOND_FLOOR]
+
+function buildSeatId(section: SeatSection, seat: number) {
+  return `${section.id}-${seat.toString().padStart(3, '0')}`
+}
+
+function seatDisplayName(seatId: string) {
+  const [sectionId, number] = seatId.split('-')
+  const section = ALL_SECTIONS.find((item) => item.id === sectionId)
+  if (!section || !number) return seatId
+  return `${section.floor} ${section.name} ${Number(number)}번`
 }
 
 function loadReservations(): Record<string, Reservation> {
@@ -39,8 +82,8 @@ function App() {
 
   const seats = useMemo(
     () =>
-      ROWS.flatMap((row) =>
-        Array.from({ length: SEATS_PER_ROW }, (_, index) => buildSeatId(row, index + 1)),
+      ALL_SECTIONS.flatMap((section) =>
+        Array.from({ length: section.count }, (_, index) => buildSeatId(section, index + 1)),
       ),
     [],
   )
@@ -133,16 +176,49 @@ function App() {
     URL.revokeObjectURL(url)
   }
 
+  function renderSection(section: SeatSection) {
+    return (
+      <div className={`seat-section ${section.className}`} key={section.id}>
+        <div className="section-title">
+          <strong>{section.name}</strong>
+          <span>{section.count}석</span>
+        </div>
+        <div className="section-seats" style={{ '--columns': section.columns } as CSSProperties}>
+          {Array.from({ length: section.count }, (_, index) => {
+            const seatNumber = index + 1
+            const seatId = buildSeatId(section, seatNumber)
+            const status = seatStatus(seatId)
+            const isWheelchair = section.wheelchair ? seatNumber > section.count - section.wheelchair : false
+
+            return (
+              <button
+                type="button"
+                key={seatId}
+                className={`seat seat-${status} ${isWheelchair ? 'seat-wheelchair' : ''}`}
+                onClick={() => selectSeat(seatId)}
+                aria-pressed={selectedSeat === seatId}
+                aria-label={`${seatDisplayName(seatId)} ${status}`}
+                title={seatDisplayName(seatId)}
+              >
+                {isWheelchair ? '♿' : seatNumber}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <main className="app-shell">
       <section className="booking-panel" aria-label="BookingWang seat reservation">
         <div className="topbar">
           <div>
             <p className="eyebrow">BookingWang</p>
-            <h1>Seat Reservation Board</h1>
+            <h1>3·15 아트센터 대극장 좌석 예약</h1>
           </div>
           <button type="button" className="ghost-button" onClick={() => setShowAdmin((value) => !value)}>
-            {showAdmin ? 'Hide Admin' : 'Admin'}
+            {showAdmin ? '관리 숨기기' : '관리'}
           </button>
         </div>
 
@@ -152,48 +228,33 @@ function App() {
           <span>{seats.length - reservedCount} available</span>
         </div>
 
-        <div className="stage" aria-hidden="true">
-          SCREEN
-        </div>
+        <div className="venue-map" aria-label="seat map">
+          <div className="stage">STAGE</div>
+          <div className="orchestra-zone">{renderSection(ORCHESTRA)}</div>
 
-        <div className="seat-map" aria-label="seat map">
-          {ROWS.map((row) => (
-            <div className="seat-row" key={row}>
-              <span className="row-label">{row}</span>
-              <div className="seat-row-grid">
-                {Array.from({ length: SEATS_PER_ROW }, (_, index) => {
-                  const seatNumber = index + 1
-                  const seatId = buildSeatId(row, seatNumber)
-                  const status = seatStatus(seatId)
-                  return (
-                    <button
-                      type="button"
-                      key={seatId}
-                      className={`seat seat-${status} ${seatNumber === AISLE_AFTER ? 'aisle-edge' : ''}`}
-                      onClick={() => selectSeat(seatId)}
-                      aria-pressed={selectedSeat === seatId}
-                      aria-label={`${seatId} ${status}`}
-                    >
-                      {seatNumber}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
+          <div className="floor-marker">1층</div>
+          <div className="first-floor">
+            <div className="side-stack">{renderSection(SIDE_BOXES[0])}</div>
+            <div className="main-sections">{FIRST_FLOOR.map(renderSection)}</div>
+            <div className="side-stack">{renderSection(SIDE_BOXES[1])}</div>
+          </div>
+
+          <div className="floor-marker">2층</div>
+          <div className="second-floor">{SECOND_FLOOR.map(renderSection)}</div>
         </div>
 
         <div className="legend">
           <span><i className="dot available-dot" />Available</span>
           <span><i className="dot selected-dot" />Selected</span>
           <span><i className="dot reserved-dot" />Reserved</span>
+          <span><i className="dot wheelchair-dot" />Wheelchair</span>
         </div>
       </section>
 
       <aside className="side-panel" aria-label="reservation form">
         <div className="card">
           <p className="eyebrow">Selected Seat</p>
-          <h2>{selectedSeat ?? 'Choose a seat'}</h2>
+          <h2>{selectedSeat ? seatDisplayName(selectedSeat) : 'Choose a seat'}</h2>
           {selectedSeat ? (
             selectedReservation ? (
               <div className="reservation-details">
@@ -260,7 +321,7 @@ function App() {
                 Object.values(reservations).map((reservation) => (
                   <div className="reservation-item" key={reservation.seatId}>
                     <div>
-                      <strong>{reservation.seatId}</strong>
+                      <strong>{seatDisplayName(reservation.seatId)}</strong>
                       <span>{reservation.name} · {reservation.phone}</span>
                     </div>
                     <button type="button" onClick={() => cancelReservation(reservation.seatId)}>
