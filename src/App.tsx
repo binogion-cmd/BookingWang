@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import type { CSSProperties, FormEvent } from 'react'
 import './App.css'
 
@@ -66,14 +66,6 @@ function App() {
   const [form, setForm] = useState({ name: '', phone: '', note: '' })
   const [error, setError] = useState('')
   const [showAdmin, setShowAdmin] = useState(false)
-
-  const seats = useMemo(
-    () =>
-      SECTIONS.flatMap((section) =>
-        Array.from({ length: section.count }, (_, index) => buildSeatId(section, index + 1)),
-      ),
-    [],
-  )
 
   const reservedCount = Object.keys(reservations).length
   const selectedReservation = selectedSeat ? reservations[selectedSeat] : undefined
@@ -213,7 +205,6 @@ function App() {
         <div className="status-strip" aria-label="reservation status">
           <span>객석 388석</span>
           <span>휠체어석 5석 + 보조석 2석</span>
-          <span>{seats.length} selectable</span>
           <span>{reservedCount} reserved</span>
         </div>
 
