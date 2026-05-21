@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent, KeyboardEvent, MouseEvent } from 'react'
 import './App.css'
+import art315Seats from './generated/art315Seats'
 
 type SeatStatus = 'available' | 'selected' | 'reserved'
 
@@ -147,105 +148,6 @@ function makeDa() {
 
 const JINHAE_SEAT_POINTS = [...makeWing('GA', GA_ROWS, GA_X, GA_Y), ...makeNa(), ...makeDa(), ...makeWing('RA', RA_ROWS, RA_X, RA_Y)]
 
-function makeArt315Point(sectionId: string, sectionName: string, seat: number, x: number, y: number, wheelchair = false, width = 11, height = 11): SeatPoint {
-  return {
-    seatId: buildSeatId(sectionId, seat),
-    sectionId,
-    sectionName,
-    number: seat,
-    x,
-    y,
-    width,
-    height,
-    wheelchair,
-  }
-}
-
-function makeArt315Grid(sectionId: string, sectionName: string, count: number, x: number, y: number, dx: number, dy: number, columns: number, wheelchairFrom?: number, width = 11, height = 11) {
-  const points: SeatPoint[] = []
-  for (let seat = 1; seat <= count; seat += columns) {
-    const rowIndex = Math.floor((seat - 1) / columns)
-    const rowSeats = Array.from({ length: Math.min(columns, count - seat + 1) }, (_, index) => seat + index)
-    const visualSeats = rowIndex % 2 === 0 ? rowSeats : [...rowSeats].reverse()
-    visualSeats.forEach((seatNumber, visualIndex) => {
-      points.push(makeArt315Point(sectionId, sectionName, seatNumber, x + visualIndex * dx, y + rowIndex * dy, wheelchairFrom ? seatNumber >= wheelchairFrom : false, width, height))
-    })
-  }
-  return points
-}
-
-type Art315Segment = {
-  count: number
-  columns: number
-  x: number
-  y: number
-  dx: number
-  dy: number
-}
-
-function makeArt315SegmentTable(sectionId: string, sectionName: string, segments: Art315Segment[], wheelchairFrom?: number) {
-  const points: SeatPoint[] = []
-  let seatCursor = 1
-
-  segments.forEach((segment) => {
-    const segmentEnd = seatCursor + segment.count
-    for (let seat = seatCursor; seat < segmentEnd; seat += segment.columns) {
-      const rowIndex = Math.floor((seat - seatCursor) / segment.columns)
-      const rowSeats = Array.from({ length: Math.min(segment.columns, segmentEnd - seat) }, (_, index) => seat + index)
-      const visualSeats = rowIndex % 2 === 0 ? rowSeats : [...rowSeats].reverse()
-      visualSeats.forEach((seatNumber, visualIndex) => {
-        points.push(
-          makeArt315Point(
-            sectionId,
-            sectionName,
-            seatNumber,
-            segment.x + visualIndex * segment.dx,
-            segment.y + rowIndex * segment.dy,
-            wheelchairFrom ? seatNumber >= wheelchairFrom : false,
-          ),
-        )
-      })
-    }
-    seatCursor = segmentEnd
-  })
-
-  return points
-}
-
-function makeArt315Orchestra() {
-  return [
-    ...makeArt315Grid('O-L', '오케스트라박스 좌측', 16, 238, 168, 14.5, 17, 8, undefined, 11, 10),
-    ...makeArt315Grid('O-C', '오케스트라박스 중앙', 20, 390, 168, 14.5, 17, 10, undefined, 11, 10),
-    ...makeArt315Grid('O-R', '오케스트라박스 우측', 18, 642, 168, 14.5, 17, 9, undefined, 11, 10),
-  ]
-}
-
-function makeArt315Side(sectionId: string, sectionName: string, x: number) {
-  const xOffset = sectionId === '1D' ? 11 : -11
-  return Array.from({ length: 12 }, (_, index) => makeArt315Point(sectionId, sectionName, index + 1, x + xOffset, index < 3 ? 531 + index * 22 : 660 + (index - 3) * 17.5, false, 11, 13))
-}
-
-const ART315_SEAT_POINTS = [
-  ...makeArt315Orchestra(),
-  ...makeArt315SegmentTable('1A', '1층 A열', [
-    { count: 131, columns: 14, x: 206, y: 329, dx: 12.3, dy: 16.5 },
-    { count: 150, columns: 15, x: 204, y: 528, dx: 11.5, dy: 16.5 },
-  ], 270),
-  ...makeArt315SegmentTable('1B', '1층 B열', [
-    { count: 140, columns: 14, x: 395, y: 329, dx: 14.3, dy: 16.5 },
-    { count: 132, columns: 14, x: 395, y: 528, dx: 14.3, dy: 16.5 },
-  ], 271),
-  ...makeArt315SegmentTable('1C', '1층 C열', [
-    { count: 131, columns: 14, x: 620, y: 329, dx: 12.3, dy: 16.5 },
-    { count: 150, columns: 15, x: 620, y: 528, dx: 11.5, dy: 16.5 },
-  ], 270),
-  ...makeArt315Side('1D', '1층 D열', 85),
-  ...makeArt315Side('1E', '1층 E열', 915),
-  ...makeArt315Grid('2A', '2층 A열', 83, 179, 937, 12.8, 18, 14),
-  ...makeArt315Grid('2B', '2층 B열', 84, 399, 937, 14.4, 18, 14),
-  ...makeArt315Grid('2C', '2층 C열', 83, 627, 937, 12.8, 18, 14),
-]
-
 const VENUES: Record<string, VenueConfig> = {
   jinhae: {
     id: 'jinhae',
@@ -263,7 +165,7 @@ const VENUES: Record<string, VenueConfig> = {
     width: 1000,
     height: 1141,
     stats: ['1층 834석', '2층 250석', '오케스트라박스 54석', '휠체어석 20석'],
-    seats: ART315_SEAT_POINTS,
+    seats: art315Seats,
   },
 }
 
