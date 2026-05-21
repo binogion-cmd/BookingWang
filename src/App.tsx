@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { FormEvent, KeyboardEvent } from 'react'
+import type { FormEvent, KeyboardEvent, MouseEvent } from 'react'
 import './App.css'
 
 type SeatStatus = 'available' | 'selected' | 'reserved'
@@ -29,7 +29,13 @@ type SeatPoint = {
   wheelchair: boolean
 }
 
+type CalibrationPoint = {
+  x: number
+  y: number
+}
+
 const STORAGE_KEY = 'bookingwang.reservations.v1'
+const CALIBRATION_KEY = 'bookingwang.calibration.v1'
 const VIEWBOX_WIDTH = 1000
 const VIEWBOX_HEIGHT = 789
 
@@ -128,6 +134,7 @@ function makeDa() {
 const SEAT_POINTS = [...makeWing('GA', GA_ROWS, GA_X, GA_Y), ...makeNa(), ...makeDa(), ...makeWing('RA', RA_ROWS, RA_X, RA_Y)]
 
 const SEAT_POINT_BY_ID = Object.fromEntries(SEAT_POINTS.map((seat) => [seat.seatId, seat]))
+const SEAT_SEQUENCE = SEAT_POINTS.map((seat) => seat.seatId)
 
 function seatDisplayName(seatId: string) {
   const seat = SEAT_POINT_BY_ID[seatId]
@@ -144,16 +151,30 @@ function loadReservations(): Record<string, Reservation> {
   }
 }
 
+function loadCalibration(): Record<string, CalibrationPoint> {
+  try {
+    const raw = localStorage.getItem(CALIBRATION_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
 function App() {
   const [reservations, setReservations] = useState<Record<string, Reservation>>(loadReservations)
+  const [calibration, setCalibration] = useState<Record<string, CalibrationPoint>>(loadCalibration)
+  const [calibrationIndex, setCalibrationIndex] = useState(0)
   const [selectedSeat, setSelectedSeat] = useState<string | null>(null)
   const [form, setForm] = useState({ name: '', phone: '', note: '' })
   const [error, setError] = useState('')
   const [showAdmin, setShowAdmin] = useState(false)
   const seatingChartUrl = `${import.meta.env.BASE_URL}jinhae-seating.jpg`
+  const calibrationMode = new URLSearchParams(window.location.search).has('calibrate')
 
   const reservedCount = Object.keys(reservations).length
   const selectedReservation = selectedSeat ? reservations[selectedSeat] : undefined
+  const currentCalibrationSeatId = SEAT_SEQUENCE[calibrationIndex]
+  const currentCalibrationSeat = currentCalibrationSeatId ? SEAT_POINT_BY_ID[currentCalibrationSeatId] : undefined
 
   function seatStatus(seatId: string): SeatStatus {
     if (reservations[seatId]) return 'reserved'
@@ -246,6 +267,45 @@ function App() {
     URL.revokeObjectURL(url)
   }
 
+  function saveCalibration(next: Record<string, CalibrationPoint>) {
+    setCalibration(next)
+    localStorage.setItem(CALIBRATION_KEY, JSON.stringify(next))
+  }
+
+  function calibratedSeatPoint(seat: SeatPoint) {
+    return calibration[seat.seatId] ?? { x: seat.x, y: seat.y }
+  }
+
+  function calibrateSeat(event: MouseEvent<SVGSVGElement>) {
+    if (!calibrationMode || !currentCalibrationSeatId) return
+    if (event.target instanceof SVGRectElement) return
+
+    const rect = event.currentTarget.getBoundingClientRect()
+    const x = ((event.clientX - rect.left) / rect.width) * VIEWBOX_WIDTH
+    const y = ((event.clientY - rect.top) / rect.height) * VIEWBOX_HEIGHT
+    const next = {
+      ...calibration,
+      [currentCalibrationSeatId]: {
+        x: Number(x.toFixed(2)),
+        y: Number(y.toFixed(2)),
+      },
+    }
+    saveCalibration(next)
+    setCalibrationIndex((value) => Math.min(value + 1, SEAT_SEQUENCE.length - 1))
+  }
+
+  function exportCalibration() {
+    const blob = new Blob([JSON.stringify(calibration, null, 2)], {
+      type: 'application/json',
+    })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = 'bookingwang-seat-calibration.json'
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <main className="app-shell">
       <section className="booking-panel" aria-label="BookingWang seat reservation">
@@ -266,16 +326,23 @@ function App() {
         </div>
 
         <div className="venue-map" aria-label="seat map">
-          <svg className="venue-svg" viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`} role="img" aria-label="진해문화센터 공연장 좌석 배치도">
+          <svg
+            className={`venue-svg ${calibrationMode ? 'venue-svg-calibration' : ''}`}
+            viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
+            role="img"
+            aria-label="진해문화센터 공연장 좌석 배치도"
+            onClick={calibrateSeat}
+          >
             <image href={seatingChartUrl} x="0" y="0" width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} preserveAspectRatio="xMidYMid meet" />
             {SEAT_POINTS.map((seat) => {
               const status = seatStatus(seat.seatId)
+              const point = calibratedSeatPoint(seat)
               return (
                 <rect
                   key={seat.seatId}
                   className={`svg-seat svg-seat-${status} ${seat.wheelchair ? 'svg-seat-wheelchair' : ''}`}
-                  x={seat.x - 7}
-                  y={seat.y - 7}
+                  x={point.x - 7}
+                  y={point.y - 7}
                   width="14"
                   height="14"
                   rx="2"
@@ -299,6 +366,30 @@ function App() {
       </section>
 
       <aside className="side-panel" aria-label="reservation form">
+        {calibrationMode && (
+          <div className="card calibration-card">
+            <p className="eyebrow">Calibration</p>
+            <h2>{currentCalibrationSeat ? seatDisplayName(currentCalibrationSeat.seatId) : '완료'}</h2>
+            <p className="muted">
+              이미지에서 현재 좌석의 중심을 클릭하면 좌표가 저장되고 다음 좌석으로 넘어갑니다.
+            </p>
+            <div className="calibration-progress">
+              {Object.keys(calibration).length} / {SEAT_SEQUENCE.length} saved
+            </div>
+            <div className="calibration-actions">
+              <button type="button" className="ghost-button" onClick={() => setCalibrationIndex((value) => Math.max(value - 1, 0))}>
+                Prev
+              </button>
+              <button type="button" className="ghost-button" onClick={() => setCalibrationIndex((value) => Math.min(value + 1, SEAT_SEQUENCE.length - 1))}>
+                Next
+              </button>
+              <button type="button" className="ghost-button" onClick={exportCalibration}>
+                Export
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="card">
           <p className="eyebrow">Selected Seat</p>
           <h2>{selectedSeat ? seatDisplayName(selectedSeat) : 'Choose a seat'}</h2>
@@ -389,4 +480,3 @@ function App() {
 }
 
 export default App
-
