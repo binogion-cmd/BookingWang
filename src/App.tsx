@@ -172,6 +172,44 @@ function makeArt315Grid(sectionId: string, sectionName: string, count: number, x
   return points
 }
 
+type Art315Segment = {
+  count: number
+  columns: number
+  x: number
+  y: number
+  dx: number
+  dy: number
+}
+
+function makeArt315SegmentTable(sectionId: string, sectionName: string, segments: Art315Segment[], wheelchairFrom?: number) {
+  const points: SeatPoint[] = []
+  let seatCursor = 1
+
+  segments.forEach((segment) => {
+    const segmentEnd = seatCursor + segment.count
+    for (let seat = seatCursor; seat < segmentEnd; seat += segment.columns) {
+      const rowIndex = Math.floor((seat - seatCursor) / segment.columns)
+      const rowSeats = Array.from({ length: Math.min(segment.columns, segmentEnd - seat) }, (_, index) => seat + index)
+      const visualSeats = rowIndex % 2 === 0 ? rowSeats : [...rowSeats].reverse()
+      visualSeats.forEach((seatNumber, visualIndex) => {
+        points.push(
+          makeArt315Point(
+            sectionId,
+            sectionName,
+            seatNumber,
+            segment.x + visualIndex * segment.dx,
+            segment.y + rowIndex * segment.dy,
+            wheelchairFrom ? seatNumber >= wheelchairFrom : false,
+          ),
+        )
+      })
+    }
+    seatCursor = segmentEnd
+  })
+
+  return points
+}
+
 function makeArt315Orchestra() {
   return [
     ...makeArt315Grid('O-L', '오케스트라박스 좌측', 16, 238, 168, 14.5, 17, 8, undefined, 11, 10),
@@ -186,9 +224,18 @@ function makeArt315Side(sectionId: string, sectionName: string, x: number) {
 
 const ART315_SEAT_POINTS = [
   ...makeArt315Orchestra(),
-  ...makeArt315Grid('1A', '1층 A열', 281, 198, 335, 12.3, 16.5, 14, 270),
-  ...makeArt315Grid('1B', '1층 B열', 272, 392, 335, 14.3, 16.5, 14, 271),
-  ...makeArt315Grid('1C', '1층 C열', 281, 626, 335, 12.3, 16.5, 14, 270),
+  ...makeArt315SegmentTable('1A', '1층 A열', [
+    { count: 131, columns: 14, x: 198, y: 335, dx: 12.3, dy: 16.5 },
+    { count: 150, columns: 15, x: 198, y: 514, dx: 11.5, dy: 16.5 },
+  ], 270),
+  ...makeArt315SegmentTable('1B', '1층 B열', [
+    { count: 140, columns: 14, x: 392, y: 335, dx: 14.3, dy: 16.5 },
+    { count: 132, columns: 14, x: 392, y: 514, dx: 14.3, dy: 16.5 },
+  ], 271),
+  ...makeArt315SegmentTable('1C', '1층 C열', [
+    { count: 131, columns: 14, x: 626, y: 335, dx: 12.3, dy: 16.5 },
+    { count: 150, columns: 15, x: 626, y: 514, dx: 11.5, dy: 16.5 },
+  ], 270),
   ...makeArt315Side('1D', '1층 D열', 85),
   ...makeArt315Side('1E', '1층 E열', 915),
   ...makeArt315Grid('2A', '2층 A열', 83, 164, 934, 12.8, 18, 14),
