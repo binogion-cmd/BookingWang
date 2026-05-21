@@ -37,7 +37,7 @@ type CalibrationPoint = {
 const STORAGE_KEY = 'bookingwang.reservations.v1'
 const CALIBRATION_KEY = 'bookingwang.calibration.v1'
 const VIEWBOX_WIDTH = 1000
-const VIEWBOX_HEIGHT = 789
+const VIEWBOX_HEIGHT = 756
 
 const SECTIONS: SeatSection[] = [
   { id: 'GA', name: '가열', count: 70 },
@@ -63,8 +63,8 @@ const GA_ROWS = [
   [70],
 ]
 
-const GA_X = [218, 196, 176, 155, 134, 116, 98, 82, 83, 143, 165, 232]
-const GA_Y = [285, 307, 329, 352, 376, 401, 426, 451, 475, 501, 526, 607]
+const GA_X = [227, 207, 189, 168, 149, 130, 111, 93, 93, 151, 170, 234]
+const GA_Y = [265, 325, 345, 365, 385, 407, 427, 449, 470, 491, 512, 637]
 
 const RA_ROWS = [
   [1, 2],
@@ -81,8 +81,8 @@ const RA_ROWS = [
   [70],
 ]
 
-const RA_X = [732, 731, 731, 731, 731, 731, 731, 752, 752, 752, 752, 727]
-const RA_Y = [285, 307, 329, 352, 376, 401, 426, 451, 475, 501, 526, 607]
+const RA_X = [742, 732, 732, 732, 732, 732, 732, 751, 751, 751, 751, 731]
+const RA_Y = [265, 325, 344, 365, 385, 406, 426, 448, 470, 491, 511, 637]
 
 function buildSeatId(sectionId: string, seat: number) {
   return `${sectionId}-${seat.toString().padStart(3, '0')}`
@@ -122,13 +122,13 @@ function makeSerpentine(sectionId: string, count: number, x: number, y: number, 
 }
 
 function makeNa() {
-  const main = makeSerpentine('NA', 120, 306, 266, 18.4, 22.4)
-  const wheelchairs = [121, 122, 123, 124, 125].map((seat, index) => makePoint('NA', seat, 304 + index * 36.8, 538))
+  const main = makeSerpentine('NA', 120, 309, 303, 18.9, 20.9)
+  const wheelchairs = [121, 122, 123, 124, 125].map((seat, index) => makePoint('NA', seat, 314 + index * 29.8, 553))
   return [...main, ...wheelchairs]
 }
 
 function makeDa() {
-  return makeSerpentine('DA', 130, 517, 255, 18.4, 22.4)
+  return makeSerpentine('DA', 130, 517, 282, 18.9, 20.9)
 }
 
 const SEAT_POINTS = [...makeWing('GA', GA_ROWS, GA_X, GA_Y), ...makeNa(), ...makeDa(), ...makeWing('RA', RA_ROWS, RA_X, RA_Y)]
