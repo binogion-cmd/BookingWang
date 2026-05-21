@@ -27,6 +27,14 @@ type SeatSection = {
   wheelchairSeats?: number[]
 }
 
+type SeatOverlay = {
+  seatId: string
+  label: string
+  x: number
+  y: number
+  wheelchair?: boolean
+}
+
 const STORAGE_KEY = 'bookingwang.reservations.v1'
 
 function serpentineRows(start: number, end: number, columns: number): SeatRow[] {
@@ -80,6 +88,46 @@ const SECTIONS: SeatSection[] = [
   },
   { id: 'DA', name: '다열', className: 'section-center-blue', count: 130, rows: serpentineRows(1, 130, 10) },
   { id: 'RA', name: '라열', className: 'section-right-wing', count: 70, rows: RA_ROWS },
+]
+
+const SECTION_BY_ID = Object.fromEntries(SECTIONS.map((section) => [section.id, section]))
+
+function buildSeatIdBySection(sectionId: string, seat: number) {
+  return `${sectionId}-${seat.toString().padStart(3, '0')}`
+}
+
+function makeOverlaySeat(sectionId: string, seat: number, x: number, y: number): SeatOverlay {
+  const section = SECTION_BY_ID[sectionId]
+  return {
+    seatId: buildSeatIdBySection(sectionId, seat),
+    label: `${section.name} ${seat}번`,
+    x,
+    y,
+    wheelchair: section.wheelchairSeats?.includes(seat) ?? false,
+  }
+}
+
+function makeGridOverlay(sectionId: string, x: number, y: number, dx: number, dy: number): SeatOverlay[] {
+  const section = SECTION_BY_ID[sectionId]
+  return section.rows.flatMap((row, rowIndex) =>
+    row.seats.map((seat, seatIndex) => makeOverlaySeat(sectionId, seat, x + seatIndex * dx, y + rowIndex * dy)),
+  )
+}
+
+function makeWingOverlay(sectionId: string, x: number, y: number, dx: number, dy: number, offsetScale: number): SeatOverlay[] {
+  const section = SECTION_BY_ID[sectionId]
+  return section.rows.flatMap((row, rowIndex) =>
+    row.seats.map((seat, seatIndex) =>
+      makeOverlaySeat(sectionId, seat, x + (row.offset ?? 0) * offsetScale + seatIndex * dx, y + rowIndex * dy),
+    ),
+  )
+}
+
+const OVERLAY_SEATS: SeatOverlay[] = [
+  ...makeWingOverlay('GA', 9.6, 31.8, 1.53, 2.72, 0.09),
+  ...makeGridOverlay('NA', 29.1, 25.9, 1.53, 2.56),
+  ...makeGridOverlay('DA', 50.6, 24.6, 1.53, 2.56),
+  ...makeWingOverlay('RA', 72.4, 31.8, 1.53, 2.72, 0.09),
 ]
 
 function buildSeatId(section: SeatSection, seat: number) {
@@ -251,7 +299,26 @@ function App() {
         </div>
 
         <div className="venue-map" aria-label="seat map">
-          <img className="venue-reference-image" src={seatingChartUrl} alt="진해문화센터 공연장 좌석 배치도" />
+          <div className="venue-image-frame">
+            <img className="venue-reference-image" src={seatingChartUrl} alt="진해문화센터 공연장 좌석 배치도" />
+            <div className="seat-overlay-layer" aria-label="좌석 상태 오버레이">
+              {OVERLAY_SEATS.map((seat) => {
+                const status = seatStatus(seat.seatId)
+                return (
+                  <button
+                    type="button"
+                    key={seat.seatId}
+                    className={`overlay-seat overlay-${status} ${seat.wheelchair ? 'overlay-wheelchair' : ''}`}
+                    style={{ left: `${seat.x}%`, top: `${seat.y}%` }}
+                    onClick={() => selectSeat(seat.seatId)}
+                    aria-pressed={selectedSeat === seat.seatId}
+                    aria-label={`${seat.label} ${status}`}
+                    title={seat.label}
+                  />
+                )
+              })}
+            </div>
+          </div>
         </div>
 
         <div className="legend">

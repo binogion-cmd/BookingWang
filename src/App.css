@@ -130,6 +130,51 @@ h2 {
   background: #ffffff;
 }
 
+.venue-image-frame {
+  position: relative;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.seat-overlay-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.overlay-seat {
+  position: absolute;
+  width: 1.35%;
+  aspect-ratio: 1;
+  border: 1px solid rgba(8, 79, 95, 0.26);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0;
+  transform: translate(-50%, -50%);
+}
+
+.overlay-seat:hover {
+  border-color: #ffffff;
+  background: rgba(18, 167, 201, 0.72);
+  box-shadow: 0 0 0 2px rgba(18, 167, 201, 0.28);
+}
+
+.overlay-selected {
+  border-color: #ffffff;
+  background: rgba(18, 167, 201, 0.88);
+  box-shadow: 0 0 0 2px rgba(18, 167, 201, 0.3);
+}
+
+.overlay-reserved {
+  border-color: #ffffff;
+  background: rgba(180, 35, 24, 0.9);
+  box-shadow: 0 0 0 2px rgba(180, 35, 24, 0.24);
+}
+
+.overlay-wheelchair {
+  border-color: #ffffff;
+}
+
 .stage {
   width: 66%;
   height: 34px;
@@ -543,6 +588,10 @@ textarea {
   .venue-reference-image {
     width: 100%;
     min-width: 0;
+  }
+
+  .overlay-seat {
+    width: 1.75%;
   }
 
   .legend {
