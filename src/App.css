@@ -131,8 +131,8 @@ h2 {
 }
 
 .svg-seat {
-  fill: rgba(255, 255, 255, 0.02);
-  stroke: rgba(13, 22, 32, 0.2);
+  fill: rgba(255, 255, 255, 0);
+  stroke: rgba(255, 255, 255, 0);
   stroke-width: 1.2;
   cursor: pointer;
   transition:
@@ -162,7 +162,6 @@ h2 {
 }
 
 .svg-seat-wheelchair {
-  stroke: #ffffff;
   stroke-width: 1.8;
 }
 

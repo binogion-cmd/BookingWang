@@ -64,7 +64,7 @@ const GA_ROWS = [
 ]
 
 const GA_X = [227, 207, 189, 168, 149, 130, 111, 93, 93, 151, 170, 234]
-const GA_Y = [265, 325, 345, 365, 385, 407, 427, 449, 470, 491, 512, 637]
+const GA_Y = [322, 343, 365, 386, 407, 428, 449, 470, 491, 512, 533, 642]
 
 const RA_ROWS = [
   [1, 2],
@@ -81,8 +81,8 @@ const RA_ROWS = [
   [70],
 ]
 
-const RA_X = [742, 732, 732, 732, 732, 732, 732, 751, 751, 751, 751, 731]
-const RA_Y = [265, 325, 344, 365, 385, 406, 426, 448, 470, 491, 511, 637]
+const RA_X = [731, 729, 729, 729, 729, 729, 729, 750, 750, 750, 750, 731]
+const RA_Y = [322, 343, 365, 386, 407, 428, 449, 470, 491, 512, 533, 642]
 
 function buildSeatId(sectionId: string, seat: number) {
   return `${sectionId}-${seat.toString().padStart(3, '0')}`
@@ -128,7 +128,7 @@ function makeNa() {
 }
 
 function makeDa() {
-  return makeSerpentine('DA', 130, 517, 282, 18.9, 20.9)
+  return makeSerpentine('DA', 130, 517, 303, 18.9, 20.9)
 }
 
 const SEAT_POINTS = [...makeWing('GA', GA_ROWS, GA_X, GA_Y), ...makeNa(), ...makeDa(), ...makeWing('RA', RA_ROWS, RA_X, RA_Y)]
