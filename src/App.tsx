@@ -175,7 +175,7 @@ function makeArt315Orchestra() {
 }
 
 function makeArt315Side(sectionId: string, sectionName: string, x: number) {
-  return Array.from({ length: 12 }, (_, index) => makeArt315Point(sectionId, sectionName, index + 1, x, index < 3 ? 569 + index * 22 : 692 + (index - 3) * 22))
+  return Array.from({ length: 12 }, (_, index) => makeArt315Point(sectionId, sectionName, index + 1, x, index < 3 ? 531 + index * 22 : 660 + (index - 3) * 22))
 }
 
 const ART315_SEAT_POINTS = [
@@ -185,9 +185,9 @@ const ART315_SEAT_POINTS = [
   ...makeArt315Grid('1C', '1층 C열', 281, 626, 335, 12.3, 16.5, 14, 270),
   ...makeArt315Side('1D', '1층 D열', 85),
   ...makeArt315Side('1E', '1층 E열', 915),
-  ...makeArt315Grid('2A', '2층 A열', 83, 163, 904, 12.8, 18, 14),
-  ...makeArt315Grid('2B', '2층 B열', 84, 392, 904, 14.4, 18, 14),
-  ...makeArt315Grid('2C', '2층 C열', 83, 625, 904, 12.8, 18, 14),
+  ...makeArt315Grid('2A', '2층 A열', 83, 164, 934, 12.8, 18, 14),
+  ...makeArt315Grid('2B', '2층 B열', 84, 393, 934, 14.4, 18, 14),
+  ...makeArt315Grid('2C', '2층 C열', 83, 626, 934, 12.8, 18, 14),
 ]
 
 const VENUES: Record<string, VenueConfig> = {
