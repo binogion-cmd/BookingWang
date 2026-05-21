@@ -94,6 +94,29 @@ h2 {
   gap: 8px;
 }
 
+.venue-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+
+.venue-switcher a {
+  border: 1px solid #cfd8e3;
+  border-radius: 4px;
+  color: #243142;
+  font-size: 0.9rem;
+  font-weight: 800;
+  padding: 8px 10px;
+  text-decoration: none;
+}
+
+.venue-switcher a.active {
+  background: #142033;
+  border-color: #142033;
+  color: #ffffff;
+}
+
 .status-strip span,
 .legend span {
   display: inline-flex;

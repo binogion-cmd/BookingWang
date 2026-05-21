@@ -34,8 +34,16 @@ type CalibrationPoint = {
   y: number
 }
 
-const STORAGE_KEY = 'bookingwang.reservations.v1'
-const CALIBRATION_KEY = 'bookingwang.calibration.v1'
+type VenueConfig = {
+  id: string
+  title: string
+  image: string
+  width: number
+  height: number
+  stats: string[]
+  seats: SeatPoint[]
+}
+
 const VIEWBOX_WIDTH = 1000
 const VIEWBOX_HEIGHT = 756
 
@@ -131,29 +139,96 @@ function makeDa() {
   return makeSerpentine('DA', 130, 517, 303, 18.9, 20.9)
 }
 
-const SEAT_POINTS = [...makeWing('GA', GA_ROWS, GA_X, GA_Y), ...makeNa(), ...makeDa(), ...makeWing('RA', RA_ROWS, RA_X, RA_Y)]
+const JINHAE_SEAT_POINTS = [...makeWing('GA', GA_ROWS, GA_X, GA_Y), ...makeNa(), ...makeDa(), ...makeWing('RA', RA_ROWS, RA_X, RA_Y)]
 
-const SEAT_POINT_BY_ID = Object.fromEntries(SEAT_POINTS.map((seat) => [seat.seatId, seat]))
-const SEAT_SEQUENCE = SEAT_POINTS.map((seat) => seat.seatId)
+function makeArt315Point(sectionId: string, sectionName: string, seat: number, x: number, y: number, wheelchair = false): SeatPoint {
+  return {
+    seatId: buildSeatId(sectionId, seat),
+    sectionId,
+    sectionName,
+    number: seat,
+    x,
+    y,
+    wheelchair,
+  }
+}
 
-function seatDisplayName(seatId: string) {
-  const seat = SEAT_POINT_BY_ID[seatId]
+function makeArt315Grid(sectionId: string, sectionName: string, count: number, x: number, y: number, dx: number, dy: number, columns: number, wheelchairFrom?: number) {
+  const points: SeatPoint[] = []
+  for (let seat = 1; seat <= count; seat += columns) {
+    const rowIndex = Math.floor((seat - 1) / columns)
+    const rowSeats = Array.from({ length: Math.min(columns, count - seat + 1) }, (_, index) => seat + index)
+    const visualSeats = rowIndex % 2 === 0 ? rowSeats : [...rowSeats].reverse()
+    visualSeats.forEach((seatNumber, visualIndex) => {
+      points.push(makeArt315Point(sectionId, sectionName, seatNumber, x + visualIndex * dx, y + rowIndex * dy, wheelchairFrom ? seatNumber >= wheelchairFrom : false))
+    })
+  }
+  return points
+}
+
+function makeArt315Orchestra() {
+  return [
+    ...makeArt315Grid('O-L', '오케스트라박스 좌측', 16, 238, 168, 14.5, 17, 8),
+    ...makeArt315Grid('O-C', '오케스트라박스 중앙', 20, 390, 168, 14.5, 17, 10),
+    ...makeArt315Grid('O-R', '오케스트라박스 우측', 18, 642, 168, 14.5, 17, 9),
+  ]
+}
+
+function makeArt315Side(sectionId: string, sectionName: string, x: number) {
+  return Array.from({ length: 12 }, (_, index) => makeArt315Point(sectionId, sectionName, index + 1, x, index < 3 ? 569 + index * 22 : 692 + (index - 3) * 22))
+}
+
+const ART315_SEAT_POINTS = [
+  ...makeArt315Orchestra(),
+  ...makeArt315Grid('1A', '1층 A열', 281, 198, 335, 12.3, 16.5, 14, 270),
+  ...makeArt315Grid('1B', '1층 B열', 272, 392, 335, 14.3, 16.5, 14, 271),
+  ...makeArt315Grid('1C', '1층 C열', 281, 626, 335, 12.3, 16.5, 14, 270),
+  ...makeArt315Side('1D', '1층 D열', 85),
+  ...makeArt315Side('1E', '1층 E열', 915),
+  ...makeArt315Grid('2A', '2층 A열', 83, 163, 904, 12.8, 18, 14),
+  ...makeArt315Grid('2B', '2층 B열', 84, 392, 904, 14.4, 18, 14),
+  ...makeArt315Grid('2C', '2층 C열', 83, 625, 904, 12.8, 18, 14),
+]
+
+const VENUES: Record<string, VenueConfig> = {
+  jinhae: {
+    id: 'jinhae',
+    title: '진해문화센터 공연장',
+    image: 'jinhae-seating.jpg',
+    width: VIEWBOX_WIDTH,
+    height: VIEWBOX_HEIGHT,
+    stats: ['객석 388석', '휠체어석 5석 + 보조석 2석'],
+    seats: JINHAE_SEAT_POINTS,
+  },
+  art315: {
+    id: 'art315',
+    title: '3·15 아트센터 대극장',
+    image: 'art315-seating.jpg',
+    width: 1000,
+    height: 1141,
+    stats: ['1층 834석', '2층 250석', '오케스트라박스 54석', '휠체어석 20석'],
+    seats: ART315_SEAT_POINTS,
+  },
+}
+
+function seatDisplayName(seatId: string, seatPointById: Record<string, SeatPoint>) {
+  const seat = seatPointById[seatId]
   if (!seat) return seatId
   return `${seat.sectionName} ${seat.number}번`
 }
 
-function loadReservations(): Record<string, Reservation> {
+function loadReservations(storageKey: string): Record<string, Reservation> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(storageKey)
     return raw ? JSON.parse(raw) : {}
   } catch {
     return {}
   }
 }
 
-function loadCalibration(): Record<string, CalibrationPoint> {
+function loadCalibration(calibrationKey: string): Record<string, CalibrationPoint> {
   try {
-    const raw = localStorage.getItem(CALIBRATION_KEY)
+    const raw = localStorage.getItem(calibrationKey)
     return raw ? JSON.parse(raw) : {}
   } catch {
     return {}
@@ -161,20 +236,28 @@ function loadCalibration(): Record<string, CalibrationPoint> {
 }
 
 function App() {
-  const [reservations, setReservations] = useState<Record<string, Reservation>>(loadReservations)
-  const [calibration, setCalibration] = useState<Record<string, CalibrationPoint>>(loadCalibration)
+  const params = new URLSearchParams(window.location.search)
+  const requestedVenue = params.get('venue') === '315' || params.get('venue') === 'art315' ? 'art315' : 'jinhae'
+  const venue = VENUES[requestedVenue]
+  const storageKey = `bookingwang.reservations.${venue.id}.v1`
+  const calibrationKey = `bookingwang.calibration.${venue.id}.v1`
+  const seatPoints = venue.seats
+  const seatPointById = Object.fromEntries(seatPoints.map((seat) => [seat.seatId, seat]))
+  const seatSequence = seatPoints.map((seat) => seat.seatId)
+  const [reservations, setReservations] = useState<Record<string, Reservation>>(() => loadReservations(storageKey))
+  const [calibration, setCalibration] = useState<Record<string, CalibrationPoint>>(() => loadCalibration(calibrationKey))
   const [calibrationIndex, setCalibrationIndex] = useState(0)
   const [selectedSeat, setSelectedSeat] = useState<string | null>(null)
   const [form, setForm] = useState({ name: '', phone: '', note: '' })
   const [error, setError] = useState('')
   const [showAdmin, setShowAdmin] = useState(false)
-  const seatingChartUrl = `${import.meta.env.BASE_URL}jinhae-seating.jpg`
+  const seatingChartUrl = `${import.meta.env.BASE_URL}${venue.image}`
   const calibrationMode = new URLSearchParams(window.location.search).has('calibrate')
 
   const reservedCount = Object.keys(reservations).length
   const selectedReservation = selectedSeat ? reservations[selectedSeat] : undefined
-  const currentCalibrationSeatId = SEAT_SEQUENCE[calibrationIndex]
-  const currentCalibrationSeat = currentCalibrationSeatId ? SEAT_POINT_BY_ID[currentCalibrationSeatId] : undefined
+  const currentCalibrationSeatId = seatSequence[calibrationIndex]
+  const currentCalibrationSeat = currentCalibrationSeatId ? seatPointById[currentCalibrationSeatId] : undefined
 
   function seatStatus(seatId: string): SeatStatus {
     if (reservations[seatId]) return 'reserved'
@@ -201,7 +284,7 @@ function App() {
 
   function persist(next: Record<string, Reservation>) {
     setReservations(next)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    localStorage.setItem(storageKey, JSON.stringify(next))
   }
 
   function reserveSeat(event: FormEvent<HTMLFormElement>) {
@@ -269,7 +352,7 @@ function App() {
 
   function saveCalibration(next: Record<string, CalibrationPoint>) {
     setCalibration(next)
-    localStorage.setItem(CALIBRATION_KEY, JSON.stringify(next))
+    localStorage.setItem(calibrationKey, JSON.stringify(next))
   }
 
   function calibratedSeatPoint(seat: SeatPoint) {
@@ -281,8 +364,8 @@ function App() {
     if (event.target instanceof SVGRectElement) return
 
     const rect = event.currentTarget.getBoundingClientRect()
-    const x = ((event.clientX - rect.left) / rect.width) * VIEWBOX_WIDTH
-    const y = ((event.clientY - rect.top) / rect.height) * VIEWBOX_HEIGHT
+    const x = ((event.clientX - rect.left) / rect.width) * venue.width
+    const y = ((event.clientY - rect.top) / rect.height) * venue.height
     const next = {
       ...calibration,
       [currentCalibrationSeatId]: {
@@ -291,7 +374,7 @@ function App() {
       },
     }
     saveCalibration(next)
-    setCalibrationIndex((value) => Math.min(value + 1, SEAT_SEQUENCE.length - 1))
+    setCalibrationIndex((value) => Math.min(value + 1, seatSequence.length - 1))
   }
 
   function exportCalibration() {
@@ -301,7 +384,7 @@ function App() {
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = 'bookingwang-seat-calibration.json'
+    anchor.download = `bookingwang-${venue.id}-seat-calibration.json`
     anchor.click()
     URL.revokeObjectURL(url)
   }
@@ -312,29 +395,33 @@ function App() {
         <div className="topbar">
           <div>
             <p className="eyebrow">BookingWang</p>
-            <h1>진해문화센터 공연장 좌석 예약</h1>
+            <h1>{venue.title} 좌석 예약</h1>
           </div>
           <button type="button" className="ghost-button" onClick={() => setShowAdmin((value) => !value)}>
             {showAdmin ? '관리 숨기기' : '관리'}
           </button>
         </div>
 
+        <div className="venue-switcher" aria-label="venue selector">
+          <a className={venue.id === 'jinhae' ? 'active' : ''} href="?venue=jinhae">진해문화센터</a>
+          <a className={venue.id === 'art315' ? 'active' : ''} href="?venue=315">3·15 아트센터</a>
+        </div>
+
         <div className="status-strip" aria-label="reservation status">
-          <span>객석 388석</span>
-          <span>휠체어석 5석 + 보조석 2석</span>
+          {venue.stats.map((stat) => <span key={stat}>{stat}</span>)}
           <span>{reservedCount} reserved</span>
         </div>
 
         <div className="venue-map" aria-label="seat map">
           <svg
             className={`venue-svg ${calibrationMode ? 'venue-svg-calibration' : ''}`}
-            viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
+            viewBox={`0 0 ${venue.width} ${venue.height}`}
             role="img"
-            aria-label="진해문화센터 공연장 좌석 배치도"
+            aria-label={`${venue.title} 좌석 배치도`}
             onClick={calibrateSeat}
           >
-            <image href={seatingChartUrl} x="0" y="0" width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} preserveAspectRatio="xMidYMid meet" />
-            {SEAT_POINTS.map((seat) => {
+            <image href={seatingChartUrl} x="0" y="0" width={venue.width} height={venue.height} preserveAspectRatio="xMidYMid meet" />
+            {seatPoints.map((seat) => {
               const status = seatStatus(seat.seatId)
               const point = calibratedSeatPoint(seat)
               return (
@@ -348,7 +435,7 @@ function App() {
                   rx="2"
                   role="button"
                   tabIndex={0}
-                  aria-label={`${seatDisplayName(seat.seatId)} ${status}`}
+                  aria-label={`${seatDisplayName(seat.seatId, seatPointById)} ${status}`}
                   onClick={() => selectSeat(seat.seatId)}
                   onKeyDown={(event) => selectSeatFromKeyboard(event, seat.seatId)}
                 />
@@ -369,18 +456,18 @@ function App() {
         {calibrationMode && (
           <div className="card calibration-card">
             <p className="eyebrow">Calibration</p>
-            <h2>{currentCalibrationSeat ? seatDisplayName(currentCalibrationSeat.seatId) : '완료'}</h2>
+            <h2>{currentCalibrationSeat ? seatDisplayName(currentCalibrationSeat.seatId, seatPointById) : '완료'}</h2>
             <p className="muted">
               이미지에서 현재 좌석의 중심을 클릭하면 좌표가 저장되고 다음 좌석으로 넘어갑니다.
             </p>
             <div className="calibration-progress">
-              {Object.keys(calibration).length} / {SEAT_SEQUENCE.length} saved
+              {Object.keys(calibration).length} / {seatSequence.length} saved
             </div>
             <div className="calibration-actions">
               <button type="button" className="ghost-button" onClick={() => setCalibrationIndex((value) => Math.max(value - 1, 0))}>
                 Prev
               </button>
-              <button type="button" className="ghost-button" onClick={() => setCalibrationIndex((value) => Math.min(value + 1, SEAT_SEQUENCE.length - 1))}>
+              <button type="button" className="ghost-button" onClick={() => setCalibrationIndex((value) => Math.min(value + 1, seatSequence.length - 1))}>
                 Next
               </button>
               <button type="button" className="ghost-button" onClick={exportCalibration}>
@@ -392,7 +479,7 @@ function App() {
 
         <div className="card">
           <p className="eyebrow">Selected Seat</p>
-          <h2>{selectedSeat ? seatDisplayName(selectedSeat) : 'Choose a seat'}</h2>
+          <h2>{selectedSeat ? seatDisplayName(selectedSeat, seatPointById) : 'Choose a seat'}</h2>
           {selectedSeat ? (
             selectedReservation ? (
               <div className="reservation-details">
@@ -459,7 +546,7 @@ function App() {
                 Object.values(reservations).map((reservation) => (
                   <div className="reservation-item" key={reservation.seatId}>
                     <div>
-                      <strong>{seatDisplayName(reservation.seatId)}</strong>
+                      <strong>{seatDisplayName(reservation.seatId, seatPointById)}</strong>
                       <span>{reservation.name} · {reservation.phone}</span>
                     </div>
                     <button type="button" onClick={() => cancelReservation(reservation.seatId)}>
