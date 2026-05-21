@@ -108,7 +108,7 @@ h2 {
 }
 
 .venue-map {
-  min-width: 980px;
+  min-width: 1040px;
   overflow: auto;
   padding: 20px 24px 26px;
   border: 1px solid #d9e0e8;
@@ -119,11 +119,11 @@ h2 {
 }
 
 .stage {
-  width: 68%;
+  width: 66%;
   height: 34px;
   display: grid;
   place-items: center;
-  margin: 0 auto 40px;
+  margin: 0 auto 38px;
   border-radius: 3px;
   background: #ef6d2f;
   color: #ffffff;
@@ -132,14 +132,23 @@ h2 {
   letter-spacing: 0;
 }
 
+.auditorium-outline {
+  max-width: 1020px;
+  margin: 0 auto;
+  border: 4px solid #e0e3e6;
+  border-top: 0;
+  clip-path: polygon(20% 0, 80% 0, 96% 47%, 72% 100%, 28% 100%, 4% 47%);
+  background: rgba(255, 255, 255, 0.44);
+}
+
 .auditorium-grid {
   display: grid;
-  grid-template-columns: 0.82fr 1.18fr 1.28fr 0.82fr;
-  gap: 22px;
+  grid-template-columns: 0.9fr 1.08fr 1.12fr 0.9fr;
+  gap: 18px;
   align-items: start;
-  max-width: 940px;
+  max-width: 920px;
   margin: 0 auto;
-  padding: 0 10px 28px;
+  padding: 38px 28px 78px;
 }
 
 .seat-section {
@@ -166,20 +175,24 @@ h2 {
   color: #dce5ee;
 }
 
-.section-seats {
+.section-rows {
   display: grid;
-  grid-template-columns: repeat(var(--columns), minmax(0, 1fr));
   gap: 3px;
 }
 
-.section-left-wing {
-  margin-top: 30px;
-  transform: skewY(-10deg);
+.seat-row-line {
+  display: flex;
+  gap: 3px;
+  margin-left: var(--offset);
 }
 
+.row-with-gap {
+  margin-top: 78px;
+}
+
+.section-left-wing,
 .section-right-wing {
-  margin-top: 30px;
-  transform: skewY(10deg);
+  margin-top: 28px;
 }
 
 .section-center-yellow,
