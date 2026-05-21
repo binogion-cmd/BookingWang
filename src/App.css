@@ -109,14 +109,25 @@ h2 {
 }
 
 .venue-map {
-  min-width: 1040px;
+  width: 100%;
+  min-width: 0;
   overflow: auto;
-  padding: 20px 24px 26px;
+  padding: 10px;
   border: 1px solid #d9e0e8;
   border-radius: 8px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(245, 247, 250, 0.9)),
     #e7ebf0;
+}
+
+.venue-reference-image {
+  display: block;
+  width: 100%;
+  max-width: 1120px;
+  height: auto;
+  margin: 0 auto;
+  border-radius: 4px;
+  background: #ffffff;
 }
 
 .stage {
@@ -411,6 +422,59 @@ textarea {
   overflow: auto;
 }
 
+.seat-picker-card {
+  max-height: 520px;
+  overflow: auto;
+}
+
+.seat-picker-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.seat-picker-section {
+  display: grid;
+  gap: 7px;
+}
+
+.picker-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #233142;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.picker-section-title span {
+  color: #66768a;
+  font-size: 12px;
+}
+
+.seat-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--columns), minmax(0, 1fr));
+  gap: 4px;
+}
+
+.seat-picker-button {
+  min-width: 0;
+  height: 27px;
+  border: 1px solid #9dc7d0;
+  border-radius: 4px;
+  background: #b9eef4;
+  color: #172633;
+  padding: 0;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.seat-picker-button:hover {
+  border-color: #1f6f8b;
+}
+
 .reservation-item {
   display: flex;
   justify-content: space-between;
@@ -471,14 +535,14 @@ textarea {
   .venue-map {
     width: 100%;
     min-width: 0;
-    padding: 14px;
+    padding: 8px;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
 
-  .auditorium-outline {
-    width: 920px;
-    min-width: 920px;
+  .venue-reference-image {
+    width: 100%;
+    min-width: 0;
   }
 
   .legend {

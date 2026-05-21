@@ -108,6 +108,7 @@ function App() {
   const [form, setForm] = useState({ name: '', phone: '', note: '' })
   const [error, setError] = useState('')
   const [showAdmin, setShowAdmin] = useState(false)
+  const seatingChartUrl = `${import.meta.env.BASE_URL}jinhae-seating.jpg`
 
   const reservedCount = Object.keys(reservations).length
   const selectedReservation = selectedSeat ? reservations[selectedSeat] : undefined
@@ -197,41 +198,34 @@ function App() {
     URL.revokeObjectURL(url)
   }
 
-  function renderSection(section: SeatSection) {
+  function renderSectionChooser(section: SeatSection) {
     return (
-      <div className={`seat-section ${section.className}`} key={section.id}>
-        <div className="section-title">
+      <div className="seat-picker-section" key={section.id}>
+        <div className="picker-section-title">
           <strong>{section.name}</strong>
           <span>{section.count}석</span>
         </div>
-        <div className="section-rows">
-          {section.rows.map((row, rowIndex) => (
-            <div
-              className={`seat-row-line ${row.gapAfter ? 'row-with-gap' : ''}`}
-              key={`${section.id}-row-${rowIndex}`}
-              style={{ '--offset': `${row.offset ?? 0}px` } as CSSProperties}
-            >
-              {row.seats.map((seatNumber) => {
-                const seatId = buildSeatId(section, seatNumber)
-                const status = seatStatus(seatId)
-                const isWheelchair = section.wheelchairSeats?.includes(seatNumber) ?? false
+        <div className="seat-picker-grid" style={{ '--columns': section.id === 'GA' || section.id === 'RA' ? 7 : 10 } as CSSProperties}>
+          {Array.from({ length: section.count }, (_, index) => {
+            const seatNumber = index + 1
+            const seatId = buildSeatId(section, seatNumber)
+            const status = seatStatus(seatId)
+            const isWheelchair = section.wheelchairSeats?.includes(seatNumber) ?? false
 
-                return (
-                  <button
-                    type="button"
-                    key={seatId}
-                    className={`seat seat-${status} ${isWheelchair ? 'seat-wheelchair' : ''}`}
-                    onClick={() => selectSeat(seatId)}
-                    aria-pressed={selectedSeat === seatId}
-                    aria-label={`${seatDisplayName(seatId)} ${status}`}
-                    title={seatDisplayName(seatId)}
-                  >
-                    {isWheelchair ? '♿' : seatNumber}
-                  </button>
-                )
-              })}
-            </div>
-          ))}
+            return (
+              <button
+                type="button"
+                key={seatId}
+                className={`seat-picker-button seat-${status} ${isWheelchair ? 'seat-wheelchair' : ''}`}
+                onClick={() => selectSeat(seatId)}
+                aria-pressed={selectedSeat === seatId}
+                aria-label={`${seatDisplayName(seatId)} ${status}`}
+                title={seatDisplayName(seatId)}
+              >
+                {isWheelchair ? '♿' : seatNumber}
+              </button>
+            )
+          })}
         </div>
       </div>
     )
@@ -257,10 +251,7 @@ function App() {
         </div>
 
         <div className="venue-map" aria-label="seat map">
-          <div className="stage">STAGE</div>
-          <div className="auditorium-outline">
-            <div className="auditorium-grid">{SECTIONS.map(renderSection)}</div>
-          </div>
+          <img className="venue-reference-image" src={seatingChartUrl} alt="진해문화센터 공연장 좌석 배치도" />
         </div>
 
         <div className="legend">
@@ -324,6 +315,12 @@ function App() {
           )}
         </div>
 
+        <div className="card seat-picker-card">
+          <p className="eyebrow">Seat Picker</p>
+          <h2>좌석 번호 선택</h2>
+          <div className="seat-picker-list">{SECTIONS.map(renderSectionChooser)}</div>
+        </div>
+
         {showAdmin && (
           <div className="card admin-card">
             <div className="admin-heading">
@@ -363,4 +360,3 @@ function App() {
 }
 
 export default App
-
