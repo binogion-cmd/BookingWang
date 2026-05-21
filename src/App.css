@@ -108,9 +108,9 @@ h2 {
 }
 
 .venue-map {
-  min-width: 1040px;
+  min-width: 980px;
   overflow: auto;
-  padding: 16px;
+  padding: 20px 24px 26px;
   border: 1px solid #d9e0e8;
   border-radius: 8px;
   background:
@@ -119,11 +119,11 @@ h2 {
 }
 
 .stage {
-  width: 58%;
+  width: 68%;
   height: 34px;
   display: grid;
   place-items: center;
-  margin: 0 auto 18px;
+  margin: 0 auto 40px;
   border-radius: 3px;
   background: #ef6d2f;
   color: #ffffff;
@@ -132,48 +132,14 @@ h2 {
   letter-spacing: 0;
 }
 
-.orchestra-zone {
-  width: 58%;
-  margin: 0 auto 20px;
-}
-
-.floor-marker {
-  width: 58px;
-  height: 58px;
+.auditorium-grid {
   display: grid;
-  place-items: center;
-  margin: 12px auto;
-  border-radius: 999px;
-  background: #d4d8dd;
-  color: #ffffff;
-  font-size: 22px;
-  font-weight: 900;
-}
-
-.first-floor {
-  display: grid;
-  grid-template-columns: 64px minmax(780px, 1fr) 64px;
-  gap: 18px;
-  align-items: center;
-}
-
-.main-sections,
-.second-floor {
-  display: grid;
-  grid-template-columns: 1fr 1.08fr 1fr;
-  gap: 18px;
-  align-items: end;
-}
-
-.second-floor {
-  width: 78%;
+  grid-template-columns: 0.82fr 1.18fr 1.28fr 0.82fr;
+  gap: 22px;
+  align-items: start;
+  max-width: 940px;
   margin: 0 auto;
-}
-
-.side-stack {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  padding: 0 10px 28px;
 }
 
 .seat-section {
@@ -182,7 +148,7 @@ h2 {
 
 .section-title {
   width: fit-content;
-  min-width: 104px;
+  min-width: 106px;
   display: flex;
   justify-content: center;
   gap: 6px;
@@ -206,14 +172,19 @@ h2 {
   gap: 3px;
 }
 
-.section-orchestra .section-seats {
-  grid-template-columns: repeat(26, minmax(0, 1fr));
+.section-left-wing {
+  margin-top: 30px;
+  transform: skewY(-10deg);
 }
 
-.section-sidebox .section-seats {
-  grid-template-columns: 1fr;
-  width: 28px;
-  margin: 0 auto;
+.section-right-wing {
+  margin-top: 30px;
+  transform: skewY(10deg);
+}
+
+.section-center-yellow,
+.section-center-blue {
+  margin-top: 0;
 }
 
 .seat {
@@ -244,9 +215,14 @@ h2 {
   border-color: #d5ad37;
 }
 
-.section-wing .seat,
-.section-orchestra .seat,
-.section-sidebox .seat {
+.section-center-yellow .seat,
+.section-right-wing .seat {
+  background: #ffd45e;
+  border-color: #d5ad37;
+}
+
+.section-center-blue .seat,
+.section-left-wing .seat {
   background: #b9eef4;
 }
 
@@ -285,6 +261,11 @@ h2 {
 .available-dot {
   background: #b9eef4;
   border: 1px solid #9dc7d0;
+}
+
+.yellow-dot {
+  background: #ffd45e;
+  border: 1px solid #d5ad37;
 }
 
 .selected-dot {
@@ -467,4 +448,3 @@ textarea {
     min-width: 920px;
   }
 }
-

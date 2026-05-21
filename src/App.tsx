@@ -19,39 +19,26 @@ type SeatSection = {
   className: string
   count: number
   columns: number
-  startAt?: number
-  wheelchair?: number
+  wheelchairSeats?: number[]
+  companionSeats?: number[]
 }
 
 const STORAGE_KEY = 'bookingwang.reservations.v1'
 
-const ORCHESTRA: SeatSection = {
-  id: 'OR',
-  name: '0열 오케스트라 박스',
-  floor: 'stage',
-  className: 'section-orchestra',
-  count: 54,
-  columns: 26,
-}
-
-const FIRST_FLOOR: SeatSection[] = [
-  { id: '1A', name: 'A열', floor: '1층', className: 'section-wing', count: 281, columns: 12, wheelchair: 10 },
-  { id: '1B', name: 'B열', floor: '1층', className: 'section-center', count: 272, columns: 14, wheelchair: 2 },
-  { id: '1C', name: 'C열', floor: '1층', className: 'section-wing', count: 281, columns: 12, wheelchair: 10 },
+const SECTIONS: SeatSection[] = [
+  { id: 'GA', name: '가열', floor: '진해문화센터 공연장', className: 'section-left-wing', count: 70, columns: 6 },
+  {
+    id: 'NA',
+    name: '나열',
+    floor: '진해문화센터 공연장',
+    className: 'section-center-yellow',
+    count: 125,
+    columns: 10,
+    wheelchairSeats: [121, 122, 123, 124, 125],
+  },
+  { id: 'DA', name: '다열', floor: '진해문화센터 공연장', className: 'section-center-blue', count: 130, columns: 10 },
+  { id: 'RA', name: '라열', floor: '진해문화센터 공연장', className: 'section-right-wing', count: 70, columns: 6 },
 ]
-
-const SIDE_BOXES: SeatSection[] = [
-  { id: '1D', name: 'D열', floor: '1층 측면', className: 'section-sidebox', count: 12, columns: 1 },
-  { id: '1E', name: 'E열', floor: '1층 측면', className: 'section-sidebox', count: 12, columns: 1 },
-]
-
-const SECOND_FLOOR: SeatSection[] = [
-  { id: '2A', name: 'A열', floor: '2층', className: 'section-wing', count: 83, columns: 14 },
-  { id: '2B', name: 'B열', floor: '2층', className: 'section-center', count: 84, columns: 14 },
-  { id: '2C', name: 'C열', floor: '2층', className: 'section-wing', count: 83, columns: 14 },
-]
-
-const ALL_SECTIONS = [ORCHESTRA, ...FIRST_FLOOR, ...SIDE_BOXES, ...SECOND_FLOOR]
 
 function buildSeatId(section: SeatSection, seat: number) {
   return `${section.id}-${seat.toString().padStart(3, '0')}`
@@ -59,9 +46,9 @@ function buildSeatId(section: SeatSection, seat: number) {
 
 function seatDisplayName(seatId: string) {
   const [sectionId, number] = seatId.split('-')
-  const section = ALL_SECTIONS.find((item) => item.id === sectionId)
+  const section = SECTIONS.find((item) => item.id === sectionId)
   if (!section || !number) return seatId
-  return `${section.floor} ${section.name} ${Number(number)}번`
+  return `${section.name} ${Number(number)}번`
 }
 
 function loadReservations(): Record<string, Reservation> {
@@ -82,7 +69,7 @@ function App() {
 
   const seats = useMemo(
     () =>
-      ALL_SECTIONS.flatMap((section) =>
+      SECTIONS.flatMap((section) =>
         Array.from({ length: section.count }, (_, index) => buildSeatId(section, index + 1)),
       ),
     [],
@@ -188,13 +175,14 @@ function App() {
             const seatNumber = index + 1
             const seatId = buildSeatId(section, seatNumber)
             const status = seatStatus(seatId)
-            const isWheelchair = section.wheelchair ? seatNumber > section.count - section.wheelchair : false
+            const isWheelchair = section.wheelchairSeats?.includes(seatNumber) ?? false
+            const isCompanion = section.companionSeats?.includes(seatNumber) ?? false
 
             return (
               <button
                 type="button"
                 key={seatId}
-                className={`seat seat-${status} ${isWheelchair ? 'seat-wheelchair' : ''}`}
+                className={`seat seat-${status} ${isWheelchair ? 'seat-wheelchair' : ''} ${isCompanion ? 'seat-companion' : ''}`}
                 onClick={() => selectSeat(seatId)}
                 aria-pressed={selectedSeat === seatId}
                 aria-label={`${seatDisplayName(seatId)} ${status}`}
@@ -215,7 +203,7 @@ function App() {
         <div className="topbar">
           <div>
             <p className="eyebrow">BookingWang</p>
-            <h1>3·15 아트센터 대극장 좌석 예약</h1>
+            <h1>진해문화센터 공연장 좌석 예약</h1>
           </div>
           <button type="button" className="ghost-button" onClick={() => setShowAdmin((value) => !value)}>
             {showAdmin ? '관리 숨기기' : '관리'}
@@ -223,28 +211,20 @@ function App() {
         </div>
 
         <div className="status-strip" aria-label="reservation status">
-          <span>{seats.length} seats</span>
+          <span>객석 388석</span>
+          <span>휠체어석 5석 + 보조석 2석</span>
+          <span>{seats.length} selectable</span>
           <span>{reservedCount} reserved</span>
-          <span>{seats.length - reservedCount} available</span>
         </div>
 
         <div className="venue-map" aria-label="seat map">
           <div className="stage">STAGE</div>
-          <div className="orchestra-zone">{renderSection(ORCHESTRA)}</div>
-
-          <div className="floor-marker">1층</div>
-          <div className="first-floor">
-            <div className="side-stack">{renderSection(SIDE_BOXES[0])}</div>
-            <div className="main-sections">{FIRST_FLOOR.map(renderSection)}</div>
-            <div className="side-stack">{renderSection(SIDE_BOXES[1])}</div>
-          </div>
-
-          <div className="floor-marker">2층</div>
-          <div className="second-floor">{SECOND_FLOOR.map(renderSection)}</div>
+          <div className="auditorium-grid">{SECTIONS.map(renderSection)}</div>
         </div>
 
         <div className="legend">
           <span><i className="dot available-dot" />Available</span>
+          <span><i className="dot yellow-dot" />Center</span>
           <span><i className="dot selected-dot" />Selected</span>
           <span><i className="dot reserved-dot" />Reserved</span>
           <span><i className="dot wheelchair-dot" />Wheelchair</span>
