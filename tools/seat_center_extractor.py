@@ -15,7 +15,7 @@ import argparse
 import csv
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -50,8 +50,19 @@ def load_seed_ts(path: Path) -> list[dict[str, Any]]:
     return json.loads(match.group(1))
 
 
-def color_mask(image_bgr: np.ndarray) -> np.ndarray:
-    hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
+def enhance_image(image_bgr: np.ndarray) -> np.ndarray:
+    blurred = cv2.GaussianBlur(image_bgr, (0, 0), 1.05)
+    sharpened = cv2.addWeighted(image_bgr, 1.65, blurred, -0.65, 0)
+    lab = cv2.cvtColor(sharpened, cv2.COLOR_BGR2LAB)
+    l_channel, a_channel, b_channel = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=1.6, tileGridSize=(8, 8))
+    enhanced_l = clahe.apply(l_channel)
+    return cv2.cvtColor(cv2.merge((enhanced_l, a_channel, b_channel)), cv2.COLOR_LAB2BGR)
+
+
+def color_mask(image_bgr: np.ndarray, enhanced: bool = False) -> np.ndarray:
+    source = enhance_image(image_bgr) if enhanced else image_bgr
+    hsv = cv2.cvtColor(source, cv2.COLOR_BGR2HSV)
     # Seats are the saturated colored elements. This intentionally excludes
     # black text/gray outlines/background while preserving red/blue/green seats.
     # Some printed seats are pastel and lose saturation after JPEG/upscaling, so
@@ -60,6 +71,15 @@ def color_mask(image_bgr: np.ndarray) -> np.ndarray:
     mask = ((hsv[:, :, 1] > 32) & (hsv[:, :, 2] > 65) & (hsv[:, :, 2] < 253)).astype(np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8), iterations=1)
     return mask
+
+
+def write_debug_images(image_bgr: np.ndarray, mask: np.ndarray, debug_dir: Path) -> None:
+    debug_dir.mkdir(parents=True, exist_ok=True)
+    enhanced = enhance_image(image_bgr)
+    enhanced_mask = color_mask(image_bgr, enhanced=True)
+    cv2.imwrite(str(debug_dir / "01-enhanced.png"), enhanced)
+    cv2.imwrite(str(debug_dir / "02-seat-binary-mask.png"), mask * 255)
+    cv2.imwrite(str(debug_dir / "03-enhanced-seat-binary-mask.png"), enhanced_mask * 255)
 
 
 def choose_component(mask_window: np.ndarray, seed_x: float, seed_y: float, x0: int, y0: int) -> tuple[np.ndarray | None, float]:
@@ -157,6 +177,58 @@ def extract_one(mask: np.ndarray, seed: dict[str, Any], scale_x: float, scale_y:
     )
 
 
+def group_section_rows(seats: list[ExtractedSeat], tolerance: float = 6.0) -> list[list[ExtractedSeat]]:
+    rows: list[list[ExtractedSeat]] = []
+    for seat in sorted(seats, key=lambda item: (item.source_y, item.source_x)):
+        for row in rows:
+            row_y = float(np.median([item.source_y for item in row]))
+            if abs(seat.source_y - row_y) <= tolerance:
+                row.append(seat)
+                break
+        else:
+            rows.append([seat])
+    for row in rows:
+        row.sort(key=lambda item: item.source_x)
+    return rows
+
+
+def refine_with_row_grid(seats: list[ExtractedSeat]) -> list[ExtractedSeat]:
+    refined: list[ExtractedSeat] = []
+    by_section: dict[str, list[ExtractedSeat]] = {}
+    for seat in seats:
+        by_section.setdefault(seat.section_id, []).append(seat)
+
+    for section_id, section_seats in by_section.items():
+        section_good = [seat for seat in section_seats if seat.pixel_count > 0 and seat.confidence >= 0.35]
+        section_dx = float(np.median([seat.x - seat.source_x for seat in section_good])) if section_good else 0.0
+        section_dy = float(np.median([seat.y - seat.source_y for seat in section_good])) if section_good else 0.0
+        width = float(np.median([seat.width for seat in section_good])) if section_good else float(np.median([seat.width for seat in section_seats]))
+        height = float(np.median([seat.height for seat in section_good])) if section_good else float(np.median([seat.height for seat in section_seats]))
+
+        for row in group_section_rows(section_seats):
+            row_good = [seat for seat in row if seat.pixel_count > 0 and seat.confidence >= 0.35]
+            row_dx = float(np.median([seat.x - seat.source_x for seat in row_good])) if row_good else section_dx
+            row_dy = float(np.median([seat.y - seat.source_y for seat in row_good])) if row_good else section_dy
+            for seat in row:
+                if seat.pixel_count > 0 and seat.confidence >= 0.35:
+                    refined.append(seat)
+                    continue
+                refined.append(
+                    replace(
+                        seat,
+                        x=round(seat.source_x + row_dx, 2),
+                        y=round(seat.source_y + row_dy, 2),
+                        width=round(width, 2),
+                        height=round(height, 2),
+                        confidence=round(max(seat.confidence, 0.42), 3),
+                        method=f"row-grid-refined:{seat.method}",
+                    )
+                )
+
+    refined.sort(key=lambda seat: (seat.section_id, seat.number))
+    return refined
+
+
 def seat_to_json(seat: ExtractedSeat) -> dict[str, Any]:
     return {
         "seatId": seat.seat_id,
@@ -242,12 +314,14 @@ def write_report(seats: list[ExtractedSeat], output: Path) -> None:
         by_section.setdefault(seat.section_id, []).append(seat)
     report = {
         "total": len(seats),
-        "fallbacks": sum(1 for seat in seats if seat.pixel_count == 0),
+        "pixelFallbacks": sum(1 for seat in seats if seat.pixel_count == 0),
+        "gridRefined": sum(1 for seat in seats if seat.method.startswith("row-grid-refined")),
         "lowConfidence": sum(1 for seat in seats if seat.confidence < 0.35),
         "sections": {
             key: {
                 "count": len(value),
-                "fallbacks": sum(1 for seat in value if seat.pixel_count == 0),
+                "pixelFallbacks": sum(1 for seat in value if seat.pixel_count == 0),
+                "gridRefined": sum(1 for seat in value if seat.method.startswith("row-grid-refined")),
                 "lowConfidence": sum(1 for seat in value if seat.confidence < 0.35),
                 "meanShiftX": round(float(np.mean([seat.x - seat.source_x for seat in value])), 3),
                 "meanShiftY": round(float(np.mean([seat.y - seat.source_y for seat in value])), 3),
@@ -270,6 +344,8 @@ def main() -> None:
     parser.add_argument("--overlay-output", type=Path, default=Path("../OpenClaw_Work_Artifacts/Bookingwang/seat-centers/art315-seat-centers-overlay.png"))
     parser.add_argument("--report-output", type=Path, default=Path("../OpenClaw_Work_Artifacts/Bookingwang/seat-centers/art315-seat-centers-report.json"))
     parser.add_argument("--ts-output", type=Path, help="Optional TypeScript output for direct service integration.")
+    parser.add_argument("--debug-dir", type=Path, help="Optional directory for enhanced image and binary mask diagnostics.")
+    parser.add_argument("--use-enhanced-mask", action="store_true", help="Use sharpened/contrast-enhanced image for binary mask extraction.")
     args = parser.parse_args()
 
     image_bgr = cv2.imread(str(args.image))
@@ -278,9 +354,12 @@ def main() -> None:
 
     scale_x = image_bgr.shape[1] / args.view_width
     scale_y = image_bgr.shape[0] / args.view_height
-    mask = color_mask(image_bgr)
+    mask = color_mask(image_bgr, enhanced=args.use_enhanced_mask)
+    if args.debug_dir:
+        write_debug_images(image_bgr, mask, args.debug_dir)
     seeds = load_seed_ts(args.seed_ts)
     seats = [extract_one(mask, seed, scale_x, scale_y) for seed in seeds]
+    seats = refine_with_row_grid(seats)
 
     write_outputs(seats, args.json_output, args.csv_output)
     if args.ts_output:
@@ -289,8 +368,9 @@ def main() -> None:
     draw_overlay(args.image, seats, args.overlay_output, args.view_width, args.view_height)
 
     fallbacks = sum(1 for seat in seats if seat.pixel_count == 0)
+    grid_refined = sum(1 for seat in seats if seat.method.startswith("row-grid-refined"))
     low_confidence = sum(1 for seat in seats if seat.confidence < 0.35)
-    print(f"extracted={len(seats)} fallbacks={fallbacks} low_confidence={low_confidence}")
+    print(f"extracted={len(seats)} pixel_fallbacks={fallbacks} grid_refined={grid_refined} low_confidence={low_confidence}")
     print(args.json_output)
     print(args.csv_output)
     print(args.overlay_output)
