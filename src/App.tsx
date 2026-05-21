@@ -219,28 +219,29 @@ function makeArt315Orchestra() {
 }
 
 function makeArt315Side(sectionId: string, sectionName: string, x: number) {
-  return Array.from({ length: 12 }, (_, index) => makeArt315Point(sectionId, sectionName, index + 1, x, index < 3 ? 531 + index * 22 : 660 + (index - 3) * 22, false, 11, 13))
+  const xOffset = sectionId === '1D' ? 11 : -11
+  return Array.from({ length: 12 }, (_, index) => makeArt315Point(sectionId, sectionName, index + 1, x + xOffset, index < 3 ? 531 + index * 22 : 660 + (index - 3) * 17.5, false, 11, 13))
 }
 
 const ART315_SEAT_POINTS = [
   ...makeArt315Orchestra(),
   ...makeArt315SegmentTable('1A', '1층 A열', [
-    { count: 131, columns: 14, x: 198, y: 335, dx: 12.3, dy: 16.5 },
-    { count: 150, columns: 15, x: 198, y: 514, dx: 11.5, dy: 16.5 },
+    { count: 131, columns: 14, x: 206, y: 329, dx: 12.3, dy: 16.5 },
+    { count: 150, columns: 15, x: 204, y: 528, dx: 11.5, dy: 16.5 },
   ], 270),
   ...makeArt315SegmentTable('1B', '1층 B열', [
-    { count: 140, columns: 14, x: 392, y: 335, dx: 14.3, dy: 16.5 },
-    { count: 132, columns: 14, x: 392, y: 514, dx: 14.3, dy: 16.5 },
+    { count: 140, columns: 14, x: 395, y: 329, dx: 14.3, dy: 16.5 },
+    { count: 132, columns: 14, x: 395, y: 528, dx: 14.3, dy: 16.5 },
   ], 271),
   ...makeArt315SegmentTable('1C', '1층 C열', [
-    { count: 131, columns: 14, x: 626, y: 335, dx: 12.3, dy: 16.5 },
-    { count: 150, columns: 15, x: 626, y: 514, dx: 11.5, dy: 16.5 },
+    { count: 131, columns: 14, x: 620, y: 329, dx: 12.3, dy: 16.5 },
+    { count: 150, columns: 15, x: 620, y: 528, dx: 11.5, dy: 16.5 },
   ], 270),
   ...makeArt315Side('1D', '1층 D열', 85),
   ...makeArt315Side('1E', '1층 E열', 915),
-  ...makeArt315Grid('2A', '2층 A열', 83, 164, 934, 12.8, 18, 14),
-  ...makeArt315Grid('2B', '2층 B열', 84, 393, 934, 14.4, 18, 14),
-  ...makeArt315Grid('2C', '2층 C열', 83, 626, 934, 12.8, 18, 14),
+  ...makeArt315Grid('2A', '2층 A열', 83, 179, 937, 12.8, 18, 14),
+  ...makeArt315Grid('2B', '2층 B열', 84, 399, 937, 14.4, 18, 14),
+  ...makeArt315Grid('2C', '2층 C열', 83, 627, 937, 12.8, 18, 14),
 ]
 
 const VENUES: Record<string, VenueConfig> = {
