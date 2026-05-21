@@ -28,6 +28,8 @@ type SeatPoint = {
   y: number
   width: number
   height: number
+  hitWidth?: number
+  hitHeight?: number
   wheelchair: boolean
 }
 
@@ -257,7 +259,7 @@ const VENUES: Record<string, VenueConfig> = {
   art315: {
     id: 'art315',
     title: '3·15 아트센터 대극장',
-    image: 'art315-seating.jpg',
+    image: 'art315-seating-2x.jpg',
     width: 1000,
     height: 1141,
     stats: ['1층 834석', '2층 250석', '오케스트라박스 54석', '휠체어석 20석'],
@@ -302,6 +304,7 @@ function App() {
   const [calibration, setCalibration] = useState<Record<string, CalibrationPoint>>(() => loadCalibration(calibrationKey))
   const [calibrationIndex, setCalibrationIndex] = useState(0)
   const [selectedSeat, setSelectedSeat] = useState<string | null>(null)
+  const [mapZoom, setMapZoom] = useState(() => (venue.id === 'art315' ? 2 : 1))
   const [form, setForm] = useState({ name: '', phone: '', note: '' })
   const [error, setError] = useState('')
   const [showAdmin, setShowAdmin] = useState(false)
@@ -413,13 +416,19 @@ function App() {
     return calibration[seat.seatId] ?? { x: seat.x, y: seat.y }
   }
 
+  function mapEventPoint(event: MouseEvent<SVGSVGElement>) {
+    const rect = event.currentTarget.getBoundingClientRect()
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * venue.width,
+      y: ((event.clientY - rect.top) / rect.height) * venue.height,
+    }
+  }
+
   function calibrateSeat(event: MouseEvent<SVGSVGElement>) {
     if (!calibrationMode || !currentCalibrationSeatId) return
     if (event.target instanceof SVGRectElement) return
 
-    const rect = event.currentTarget.getBoundingClientRect()
-    const x = ((event.clientX - rect.left) / rect.width) * venue.width
-    const y = ((event.clientY - rect.top) / rect.height) * venue.height
+    const { x, y } = mapEventPoint(event)
     const next = {
       ...calibration,
       [currentCalibrationSeatId]: {
@@ -429,6 +438,26 @@ function App() {
     }
     saveCalibration(next)
     setCalibrationIndex((value) => Math.min(value + 1, seatSequence.length - 1))
+  }
+
+  function selectNearestSeatFromMap(event: MouseEvent<SVGSVGElement>) {
+    if (calibrationMode) {
+      calibrateSeat(event)
+      return
+    }
+
+    const { x, y } = mapEventPoint(event)
+    const nearest = seatPoints.reduce<{ seatId: string, distance: number } | null>((best, seat) => {
+      const point = calibratedSeatPoint(seat)
+      const distance = Math.hypot(point.x - x, point.y - y)
+      if (best && best.distance <= distance) return best
+      return { seatId: seat.seatId, distance }
+    }, null)
+
+    const threshold = venue.id === 'art315' ? 32 : 24
+    if (nearest && nearest.distance <= threshold) {
+      selectSeat(nearest.seatId)
+    }
   }
 
   function exportCalibration() {
@@ -466,33 +495,65 @@ function App() {
           <span>{reservedCount} reserved</span>
         </div>
 
+        <div className="map-toolbar" aria-label="seat map controls">
+          {[1, 2, 4].map((zoom) => (
+            <button
+              key={zoom}
+              type="button"
+              className={mapZoom === zoom ? 'active' : ''}
+              onClick={() => setMapZoom(zoom)}
+            >
+              {Math.round(zoom * 100)}%
+            </button>
+          ))}
+        </div>
+
         <div className="venue-map" aria-label="seat map">
           <svg
             className={`venue-svg ${calibrationMode ? 'venue-svg-calibration' : ''}`}
             viewBox={`0 0 ${venue.width} ${venue.height}`}
+            style={{ width: `${mapZoom * 100}%`, maxWidth: `${venue.width * mapZoom}px` }}
             role="img"
             aria-label={`${venue.title} 좌석 배치도`}
-            onClick={calibrateSeat}
+            onClick={selectNearestSeatFromMap}
           >
             <image href={seatingChartUrl} x="0" y="0" width={venue.width} height={venue.height} preserveAspectRatio="xMidYMid meet" />
             {seatPoints.map((seat) => {
               const status = seatStatus(seat.seatId)
               const point = calibratedSeatPoint(seat)
+              const hitWidth = seat.hitWidth ?? Math.max(seat.width, venue.id === 'art315' ? 15 : 18)
+              const hitHeight = seat.hitHeight ?? Math.max(seat.height, venue.id === 'art315' ? 15 : 18)
               return (
-                <rect
+                <g
                   key={seat.seatId}
-                  className={`svg-seat svg-seat-${status} ${seat.wheelchair ? 'svg-seat-wheelchair' : ''}`}
-                  x={point.x - seat.width / 2}
-                  y={point.y - seat.height / 2}
-                  width={seat.width}
-                  height={seat.height}
-                  rx="2"
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`${seatDisplayName(seat.seatId, seatPointById)} ${status}`}
-                  onClick={() => selectSeat(seat.seatId)}
-                  onKeyDown={(event) => selectSeatFromKeyboard(event, seat.seatId)}
-                />
+                  className={`svg-seat-group svg-seat-${status} ${seat.wheelchair ? 'svg-seat-wheelchair' : ''}`}
+                >
+                  <rect
+                    className="svg-seat-target"
+                    x={point.x - hitWidth / 2}
+                    y={point.y - hitHeight / 2}
+                    width={hitWidth}
+                    height={hitHeight}
+                    rx="3"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${seatDisplayName(seat.seatId, seatPointById)} ${status}`}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      selectSeat(seat.seatId)
+                    }}
+                    onKeyDown={(event) => selectSeatFromKeyboard(event, seat.seatId)}
+                  />
+                  <rect
+                    className="svg-seat-visual"
+                    x={point.x - seat.width / 2}
+                    y={point.y - seat.height / 2}
+                    width={seat.width}
+                    height={seat.height}
+                    rx="2"
+                    aria-hidden="true"
+                  />
+                </g>
               )
             })}
           </svg>

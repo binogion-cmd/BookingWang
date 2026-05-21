@@ -146,55 +146,86 @@ h2 {
 .venue-svg {
   display: block;
   width: 100%;
-  max-width: 1120px;
   height: auto;
   margin: 0 auto;
   border-radius: 4px;
   background: #ffffff;
 }
 
-.svg-seat {
+.map-toolbar {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin: -2px 0 8px;
+}
+
+.map-toolbar button {
+  min-width: 54px;
+  height: 32px;
+  border: 1px solid #cfd8e3;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #263241;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.map-toolbar button.active {
+  border-color: #0c829d;
+  background: #0f92ae;
+  color: #ffffff;
+}
+
+.svg-seat-target {
+  fill: rgba(255, 255, 255, 0);
+  stroke: rgba(255, 255, 255, 0);
+  cursor: pointer;
+  outline: none;
+  pointer-events: all;
+}
+
+.svg-seat-visual {
+  pointer-events: none;
   fill: rgba(255, 255, 255, 0);
   stroke: rgba(255, 255, 255, 0);
   stroke-width: 1.2;
-  cursor: pointer;
   transition:
     fill 120ms ease,
     stroke 120ms ease,
     stroke-width 120ms ease;
 }
 
-.svg-seat:hover,
-.svg-seat:focus {
+.svg-seat-group:hover .svg-seat-visual,
+.svg-seat-target:focus + .svg-seat-visual {
   fill: rgba(18, 167, 201, 0.78);
   stroke: #ffffff;
   stroke-width: 2.5;
-  outline: none;
 }
 
-.svg-seat-selected {
+.svg-seat-selected .svg-seat-visual {
   fill: rgba(18, 167, 201, 0.9);
   stroke: #ffffff;
   stroke-width: 2.5;
 }
 
-.svg-seat-reserved {
+.svg-seat-reserved .svg-seat-visual {
   fill: rgba(180, 35, 24, 0.92);
   stroke: #ffffff;
   stroke-width: 2.5;
 }
 
-.svg-seat-wheelchair {
+.svg-seat-wheelchair .svg-seat-visual {
   stroke-width: 1.8;
 }
 
-.venue-svg-calibration .svg-seat {
+.venue-svg-calibration .svg-seat-visual {
   fill: rgba(255, 255, 255, 0.22);
   stroke: rgba(13, 22, 32, 0.65);
 }
 
-.venue-svg-calibration .svg-seat-selected,
-.venue-svg-calibration .svg-seat-reserved {
+.venue-svg-calibration .svg-seat-selected .svg-seat-visual,
+.venue-svg-calibration .svg-seat-reserved .svg-seat-visual {
   stroke-width: 3;
 }
 
