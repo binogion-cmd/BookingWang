@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent, KeyboardEvent, MouseEvent } from 'react'
 import './App.css'
-import art315XlsSeats from './generated/art315XlsSeats'
+import art315Seats from './generated/art315Seats'
 
 type SeatStatus = 'available' | 'selected' | 'reserved'
 
@@ -161,11 +161,11 @@ const VENUES: Record<string, VenueConfig> = {
   art315: {
     id: 'art315',
     title: '3·15 아트센터 대극장',
-    image: 'art315-xls-seat-map.png',
+    image: 'art315-seating-2x.jpg',
     width: 1000,
-    height: 380,
+    height: 1141,
     stats: ['1층 834석', '2층 250석', '오케스트라박스 54석', '휠체어석 20석'],
-    seats: art315XlsSeats,
+    seats: art315Seats,
   },
 }
 
