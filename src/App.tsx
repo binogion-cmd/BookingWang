@@ -151,6 +151,123 @@ function makeDa() {
 
 const JINHAE_SEAT_POINTS = [...makeWing('GA', GA_ROWS, GA_X, GA_Y), ...makeNa(), ...makeDa(), ...makeWing('RA', RA_ROWS, RA_X, RA_Y)]
 
+function makeDaeguSeat(sectionId: string, sectionName: string, row: number, seat: number, x: number, y: number, wheelchair = false): SeatPoint {
+  return {
+    seatId: `${sectionId}-${row.toString().padStart(2, '0')}-${seat.toString().padStart(2, '0')}`,
+    sectionId: `${sectionId}-${row.toString().padStart(2, '0')}`,
+    sectionName: row > 0 ? `${sectionName} ${row}열` : sectionName,
+    number: seat,
+    x,
+    y,
+    width: wheelchair ? 13 : 12,
+    height: wheelchair ? 13 : 12,
+    hitWidth: wheelchair ? 19 : 17,
+    hitHeight: wheelchair ? 19 : 17,
+    wheelchair,
+  }
+}
+
+function makeDaeguRow(sectionId: string, sectionName: string, row: number, y: number, xStart: number, xEnd: number, count: number, ySkew = 0) {
+  if (count === 1) return [makeDaeguSeat(sectionId, sectionName, row, 1, xStart, y)]
+  return Array.from({ length: count }, (_, index) =>
+    makeDaeguSeat(
+      sectionId,
+      sectionName,
+      row,
+      index + 1,
+      xStart + ((xEnd - xStart) * index) / (count - 1),
+      y + (ySkew * index) / (count - 1),
+    ),
+  )
+}
+
+function makeDaeguSide(sectionId: 'A' | 'C', sectionName: string) {
+  const counts = [6, 8, 10, 12, 12, 12, 12, 12, 12, 12, 10, 10, 10, 10, 8, 6]
+  const yValues = [205, 230, 255, 285, 315, 345, 375, 405, 435, 465, 505, 535, 565, 595, 635, 675]
+  return counts.flatMap((count, index) => {
+    const row = index + 1
+    let xStart: number
+    let xEnd: number
+    let y = yValues[index]
+    const ySkew = sectionId === 'A'
+      ? row <= 10 ? 35 : 45
+      : row <= 10 ? -35 : -45
+
+    if (sectionId === 'A') {
+      if (row <= 4) {
+        xStart = 185
+        xEnd = 325
+        y += 6
+      } else if (row <= 7) {
+        xStart = 175
+        xEnd = 320
+        y += 4
+      } else if (row <= 10) {
+        xStart = 165
+        xEnd = 315
+        y += 2
+      } else if (row <= 13) {
+        xStart = 165
+        xEnd = 305
+        y -= 2
+      } else {
+        xStart = 160
+        xEnd = 300
+        y -= 4
+      }
+    } else if (row <= 4) {
+      xStart = 675
+      xEnd = 815
+      y += 6
+    } else if (row <= 7) {
+      xStart = 680
+      xEnd = 825
+      y += 4
+    } else if (row <= 10) {
+      xStart = 685
+      xEnd = 835
+      y += 2
+    } else if (row <= 13) {
+      xStart = 695
+      xEnd = 835
+      y -= 2
+    } else {
+      xStart = 700
+      xEnd = 840
+      y -= 4
+    }
+
+    return makeDaeguRow(sectionId, sectionName, row, y, xStart, xEnd, count, ySkew)
+  })
+}
+
+function makeDaeguCenter() {
+  const yValues = [225, 255, 285, 315, 345, 375, 405, 435, 465, 495, 560, 590, 620, 645]
+  return yValues.flatMap((y, index) => makeDaeguRow('B', 'B구역', index + 1, y, 375, 625, 16))
+}
+
+function makeDaeguOrchestraPit() {
+  return [
+    ...makeDaeguRow('S', 'S 오케스트라 피트석', 1, 110, 385, 615, 8),
+    ...makeDaeguRow('S', 'S 오케스트라 피트석', 2, 132, 335, 665, 12),
+    ...makeDaeguRow('S', 'S 오케스트라 피트석', 3, 154, 325, 675, 12),
+  ]
+}
+
+function makeDaeguWheelchairs() {
+  return Array.from({ length: 10 }, (_, index) =>
+    makeDaeguSeat('W', '장애인석', 0, index + 1, 432 + index * 15, 710, true),
+  )
+}
+
+const DAEGU_SEAT_POINTS = [
+  ...makeDaeguOrchestraPit(),
+  ...makeDaeguSide('A', 'A구역'),
+  ...makeDaeguCenter(),
+  ...makeDaeguSide('C', 'C구역'),
+  ...makeDaeguWheelchairs(),
+]
+
 const VENUES: Record<string, VenueConfig> = {
   jinhae: {
     id: 'jinhae',
@@ -169,6 +286,15 @@ const VENUES: Record<string, VenueConfig> = {
     height: 1141,
     stats: ['1층 834석', '2층 250석', '오케스트라박스 54석', '휠체어석 20석'],
     seats: art315Seats,
+  },
+  daegu: {
+    id: 'daegu',
+    title: '대구 공연장',
+    image: 'daegu-seating-enhanced-2x.png',
+    width: 1000,
+    height: 900,
+    stats: ['1층 S/A/B/C 구역', '장애인석 10석', '좌표 초안 586석'],
+    seats: DAEGU_SEAT_POINTS,
   },
 }
 
@@ -198,7 +324,12 @@ function loadCalibration(calibrationKey: string): Record<string, CalibrationPoin
 
 function App() {
   const params = new URLSearchParams(window.location.search)
-  const requestedVenue = params.get('venue') === '315' || params.get('venue') === 'art315' ? 'art315' : 'jinhae'
+  const requestedVenueParam = params.get('venue')
+  const requestedVenue = requestedVenueParam === '315' || requestedVenueParam === 'art315'
+    ? 'art315'
+    : requestedVenueParam === 'daegu'
+      ? 'daegu'
+      : 'jinhae'
   const venue = VENUES[requestedVenue]
   const storageKey = `bookingwang.reservations.${venue.id}.v1`
   const calibrationKey = `bookingwang.calibration.${venue.id}.v1`
@@ -359,7 +490,7 @@ function App() {
       return { seatId: seat.seatId, distance }
     }, null)
 
-    const threshold = venue.id === 'art315' ? 32 : 24
+    const threshold = venue.id === 'art315' ? 32 : venue.id === 'daegu' ? 28 : 24
     if (nearest && nearest.distance <= threshold) {
       selectSeat(nearest.seatId)
     }
@@ -393,6 +524,7 @@ function App() {
         <div className="venue-switcher" aria-label="venue selector">
           <a className={venue.id === 'jinhae' ? 'active' : ''} href="?venue=jinhae">진해문화센터</a>
           <a className={venue.id === 'art315' ? 'active' : ''} href="?venue=315">3·15 아트센터</a>
+          <a className={venue.id === 'daegu' ? 'active' : ''} href="?venue=daegu">대구 공연장</a>
         </div>
 
         <div className="status-strip" aria-label="reservation status">
