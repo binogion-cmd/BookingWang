@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { FormEvent, KeyboardEvent, MouseEvent } from 'react'
 import './App.css'
 import art315Seats from './generated/art315Seats'
@@ -37,6 +37,15 @@ type SeatPoint = {
 type CalibrationPoint = {
   x: number
   y: number
+}
+
+type DaeguAnchorTask = {
+  rowId: string
+  seatId: string
+  label: string
+  anchorLabel: string
+  anchorIndex: number
+  anchorTotal: number
 }
 
 type VenueConfig = {
@@ -268,6 +277,73 @@ const DAEGU_SEAT_POINTS = [
   ...makeDaeguWheelchairs(),
 ]
 
+const KU_ROWS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M']
+const KU_LEFT_X = [195, 237, 278, 319, 361, 403]
+const KU_RIGHT_X = [469, 510, 551, 592, 634, 675]
+const KU_Y = [342, 388, 434, 480, 526, 573, 620, 667, 714, 760, 807, 854, 900]
+
+function makeKuCinemaSeat(row: string, seat: number, x: number, y: number): SeatPoint {
+  return {
+    seatId: `KU-${row}-${seat.toString().padStart(3, '0')}`,
+    sectionId: `KU-${row}`,
+    sectionName: `${row}열`,
+    number: seat,
+    x,
+    y,
+    width: 24,
+    height: 24,
+    hitWidth: 34,
+    hitHeight: 34,
+    wheelchair: false,
+  }
+}
+
+function makeKuCinemaSeats() {
+  return KU_ROWS.flatMap((row, rowIndex) => {
+    const y = KU_Y[rowIndex]
+    const leftSeats = row === 'A' ? [10, 9, 8, 7] : [12, 11, 10, 9, 8, 7]
+    const rightSeats = row === 'A' ? [6, 5, 4, 3] : [6, 5, 4, 3, 2, 1]
+
+    return [
+      ...leftSeats.map((seat, index) => makeKuCinemaSeat(row, seat, KU_LEFT_X[index + (row === 'A' ? 2 : 0)], y)),
+      ...rightSeats.map((seat, index) => makeKuCinemaSeat(row, seat, KU_RIGHT_X[index], y)),
+    ]
+  })
+}
+
+const KU_CINEMA_SEAT_POINTS = makeKuCinemaSeats()
+
+const DAEGU_ROW_GROUPS = Object.values(
+  DAEGU_SEAT_POINTS.reduce<Record<string, SeatPoint[]>>((groups, seat) => {
+    groups[seat.sectionId] = [...(groups[seat.sectionId] ?? []), seat]
+    return groups
+  }, {}),
+).map((rowSeats) => [...rowSeats].sort((a, b) => a.number - b.number))
+
+const DAEGU_ANCHOR_TASKS: DaeguAnchorTask[] = DAEGU_ROW_GROUPS.flatMap((rowSeats) => {
+  const rowId = rowSeats[0]?.sectionId
+  if (!rowId) return []
+
+  const anchorIndexes = rowSeats.length <= 2
+    ? [0, rowSeats.length - 1]
+    : [0, Math.floor((rowSeats.length - 1) / 2), rowSeats.length - 1]
+  const uniqueIndexes = Array.from(new Set(anchorIndexes))
+
+  return uniqueIndexes.map((seatIndex, anchorIndex) => {
+    const seat = rowSeats[seatIndex]
+    return {
+      rowId,
+      seatId: seat.seatId,
+      label: `${seat.sectionName} ${seat.number}번`,
+      anchorLabel: uniqueIndexes.length === 2
+        ? anchorIndex === 0 ? '왼쪽 끝' : '오른쪽 끝'
+        : anchorIndex === 0 ? '왼쪽 끝' : anchorIndex === 1 ? '중간' : '오른쪽 끝',
+      anchorIndex,
+      anchorTotal: uniqueIndexes.length,
+    }
+  })
+})
+
 const VENUES: Record<string, VenueConfig> = {
   jinhae: {
     id: 'jinhae',
@@ -296,6 +372,15 @@ const VENUES: Record<string, VenueConfig> = {
     stats: ['1층 S/A/B/C 구역', '장애인석 10석', '좌표 초안 586석'],
     seats: DAEGU_SEAT_POINTS,
   },
+  ku: {
+    id: 'ku',
+    title: 'KU 시네마',
+    image: 'ku-cinema-seating.jpg',
+    width: 871,
+    height: 1024,
+    stats: ['A-M열', '총 152석', '중앙 통로 분리'],
+    seats: KU_CINEMA_SEAT_POINTS,
+  },
 }
 
 function seatDisplayName(seatId: string, seatPointById: Record<string, SeatPoint>) {
@@ -322,6 +407,52 @@ function loadCalibration(calibrationKey: string): Record<string, CalibrationPoin
   }
 }
 
+function interpolateLinear(left: CalibrationPoint, right: CalibrationPoint, ratio: number): CalibrationPoint {
+  return {
+    x: left.x + (right.x - left.x) * ratio,
+    y: left.y + (right.y - left.y) * ratio,
+  }
+}
+
+function interpolateQuadratic(left: CalibrationPoint, middle: CalibrationPoint, right: CalibrationPoint, ratio: number): CalibrationPoint {
+  const leftWeight = 2 * (ratio - 0.5) * (ratio - 1)
+  const middleWeight = -4 * ratio * (ratio - 1)
+  const rightWeight = 2 * ratio * (ratio - 0.5)
+
+  return {
+    x: left.x * leftWeight + middle.x * middleWeight + right.x * rightWeight,
+    y: left.y * leftWeight + middle.y * middleWeight + right.y * rightWeight,
+  }
+}
+
+function buildDaeguCurveCalibration(anchorCalibration: Record<string, CalibrationPoint>) {
+  return DAEGU_ROW_GROUPS.reduce<Record<string, CalibrationPoint>>((next, rowSeats) => {
+    const tasks = DAEGU_ANCHOR_TASKS.filter((task) => task.rowId === rowSeats[0]?.sectionId)
+    const anchors = tasks.map((task) => anchorCalibration[task.seatId])
+
+    if (anchors.length < 2 || anchors.some((point) => !point)) {
+      rowSeats.forEach((seat) => {
+        if (anchorCalibration[seat.seatId]) next[seat.seatId] = anchorCalibration[seat.seatId]
+      })
+      return next
+    }
+
+    rowSeats.forEach((seat, index) => {
+      const ratio = rowSeats.length === 1 ? 0 : index / (rowSeats.length - 1)
+      const point = anchors.length >= 3
+        ? interpolateQuadratic(anchors[0], anchors[1], anchors[2], ratio)
+        : interpolateLinear(anchors[0], anchors[1], ratio)
+
+      next[seat.seatId] = {
+        x: Number(point.x.toFixed(2)),
+        y: Number(point.y.toFixed(2)),
+      }
+    })
+
+    return next
+  }, {})
+}
+
 function App() {
   const params = new URLSearchParams(window.location.search)
   const requestedVenueParam = params.get('venue')
@@ -329,16 +460,21 @@ function App() {
     ? 'art315'
     : requestedVenueParam === 'daegu'
       ? 'daegu'
+      : requestedVenueParam === 'ku'
+        ? 'ku'
       : 'jinhae'
   const venue = VENUES[requestedVenue]
   const storageKey = `bookingwang.reservations.${venue.id}.v1`
   const calibrationKey = `bookingwang.calibration.${venue.id}.v1`
+  const daeguAnchorKey = `bookingwang.daeguAnchorCalibration.${venue.id}.v1`
   const seatPoints = venue.seats
   const seatPointById = Object.fromEntries(seatPoints.map((seat) => [seat.seatId, seat]))
   const seatSequence = seatPoints.map((seat) => seat.seatId)
   const [reservations, setReservations] = useState<Record<string, Reservation>>(() => loadReservations(storageKey))
   const [calibration, setCalibration] = useState<Record<string, CalibrationPoint>>(() => loadCalibration(calibrationKey))
+  const [daeguAnchorCalibration, setDaeguAnchorCalibration] = useState<Record<string, CalibrationPoint>>(() => loadCalibration(daeguAnchorKey))
   const [calibrationIndex, setCalibrationIndex] = useState(0)
+  const [daeguAnchorIndex, setDaeguAnchorIndex] = useState(0)
   const [selectedSeat, setSelectedSeat] = useState<string | null>(null)
   const [mapZoom, setMapZoom] = useState(() => (venue.id === 'art315' ? 2 : 1))
   const [form, setForm] = useState({ name: '', phone: '', note: '' })
@@ -351,6 +487,12 @@ function App() {
   const selectedReservation = selectedSeat ? reservations[selectedSeat] : undefined
   const currentCalibrationSeatId = seatSequence[calibrationIndex]
   const currentCalibrationSeat = currentCalibrationSeatId ? seatPointById[currentCalibrationSeatId] : undefined
+  const daeguCurveCalibration = useMemo(() => buildDaeguCurveCalibration(daeguAnchorCalibration), [daeguAnchorCalibration])
+  const currentDaeguAnchorTask = DAEGU_ANCHOR_TASKS[daeguAnchorIndex]
+  const daeguCompletedRows = DAEGU_ROW_GROUPS.filter((rowSeats) => {
+    const tasks = DAEGU_ANCHOR_TASKS.filter((task) => task.rowId === rowSeats[0]?.sectionId)
+    return tasks.every((task) => daeguAnchorCalibration[task.seatId])
+  }).length
 
   function seatStatus(seatId: string): SeatStatus {
     if (reservations[seatId]) return 'reserved'
@@ -448,7 +590,14 @@ function App() {
     localStorage.setItem(calibrationKey, JSON.stringify(next))
   }
 
+  function saveDaeguAnchorCalibration(next: Record<string, CalibrationPoint>) {
+    setDaeguAnchorCalibration(next)
+    localStorage.setItem(daeguAnchorKey, JSON.stringify(next))
+    localStorage.setItem(calibrationKey, JSON.stringify(buildDaeguCurveCalibration(next)))
+  }
+
   function calibratedSeatPoint(seat: SeatPoint) {
+    if (venue.id === 'daegu') return daeguCurveCalibration[seat.seatId] ?? calibration[seat.seatId] ?? { x: seat.x, y: seat.y }
     return calibration[seat.seatId] ?? { x: seat.x, y: seat.y }
   }
 
@@ -476,8 +625,28 @@ function App() {
     setCalibrationIndex((value) => Math.min(value + 1, seatSequence.length - 1))
   }
 
+  function calibrateDaeguAnchor(event: MouseEvent<SVGSVGElement>) {
+    if (!currentDaeguAnchorTask) return
+    if (event.target instanceof SVGRectElement) return
+
+    const { x, y } = mapEventPoint(event)
+    const next = {
+      ...daeguAnchorCalibration,
+      [currentDaeguAnchorTask.seatId]: {
+        x: Number(x.toFixed(2)),
+        y: Number(y.toFixed(2)),
+      },
+    }
+    saveDaeguAnchorCalibration(next)
+    setDaeguAnchorIndex((value) => Math.min(value + 1, DAEGU_ANCHOR_TASKS.length - 1))
+  }
+
   function selectNearestSeatFromMap(event: MouseEvent<SVGSVGElement>) {
     if (calibrationMode) {
+      if (venue.id === 'daegu') {
+        calibrateDaeguAnchor(event)
+        return
+      }
       calibrateSeat(event)
       return
     }
@@ -497,7 +666,8 @@ function App() {
   }
 
   function exportCalibration() {
-    const blob = new Blob([JSON.stringify(calibration, null, 2)], {
+    const exportedCalibration = venue.id === 'daegu' ? daeguCurveCalibration : calibration
+    const blob = new Blob([JSON.stringify(exportedCalibration, null, 2)], {
       type: 'application/json',
     })
     const url = URL.createObjectURL(blob)
@@ -506,6 +676,25 @@ function App() {
     anchor.download = `bookingwang-${venue.id}-seat-calibration.json`
     anchor.click()
     URL.revokeObjectURL(url)
+  }
+
+  function exportDaeguAnchors() {
+    const blob = new Blob([JSON.stringify(daeguAnchorCalibration, null, 2)], {
+      type: 'application/json',
+    })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = 'bookingwang-daegu-anchor-calibration.json'
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function clearDaeguAnchors() {
+    if (!window.confirm('대구 anchor calibration을 초기화할까요?')) return
+    saveDaeguAnchorCalibration({})
+    saveCalibration({})
+    setDaeguAnchorIndex(0)
   }
 
   return (
@@ -525,6 +714,7 @@ function App() {
           <a className={venue.id === 'jinhae' ? 'active' : ''} href="?venue=jinhae">진해문화센터</a>
           <a className={venue.id === 'art315' ? 'active' : ''} href="?venue=315">3·15 아트센터</a>
           <a className={venue.id === 'daegu' ? 'active' : ''} href="?venue=daegu">대구 공연장</a>
+          <a className={venue.id === 'ku' ? 'active' : ''} href="?venue=ku">KU 시네마</a>
         </div>
 
         <div className="status-strip" aria-label="reservation status">
@@ -560,10 +750,17 @@ function App() {
               const point = calibratedSeatPoint(seat)
               const hitWidth = seat.hitWidth ?? Math.max(seat.width, venue.id === 'art315' ? 15 : 18)
               const hitHeight = seat.hitHeight ?? Math.max(seat.height, venue.id === 'art315' ? 15 : 18)
+              const anchorState = venue.id === 'daegu' && calibrationMode
+                ? currentDaeguAnchorTask?.seatId === seat.seatId
+                  ? 'svg-seat-anchor-current'
+                  : daeguAnchorCalibration[seat.seatId]
+                    ? 'svg-seat-anchor-saved'
+                    : ''
+                : ''
               return (
                 <g
                   key={seat.seatId}
-                  className={`svg-seat-group svg-seat-${status} ${seat.wheelchair ? 'svg-seat-wheelchair' : ''}`}
+                  className={`svg-seat-group svg-seat-${status} ${seat.wheelchair ? 'svg-seat-wheelchair' : ''} ${anchorState}`}
                 >
                   <rect
                     className="svg-seat-target"
@@ -607,25 +804,63 @@ function App() {
       <aside className="side-panel" aria-label="reservation form">
         {calibrationMode && (
           <div className="card calibration-card">
-            <p className="eyebrow">Calibration</p>
-            <h2>{currentCalibrationSeat ? seatDisplayName(currentCalibrationSeat.seatId, seatPointById) : '완료'}</h2>
-            <p className="muted">
-              이미지에서 현재 좌석의 중심을 클릭하면 좌표가 저장되고 다음 좌석으로 넘어갑니다.
-            </p>
-            <div className="calibration-progress">
-              {Object.keys(calibration).length} / {seatSequence.length} saved
-            </div>
-            <div className="calibration-actions">
-              <button type="button" className="ghost-button" onClick={() => setCalibrationIndex((value) => Math.max(value - 1, 0))}>
-                Prev
-              </button>
-              <button type="button" className="ghost-button" onClick={() => setCalibrationIndex((value) => Math.min(value + 1, seatSequence.length - 1))}>
-                Next
-              </button>
-              <button type="button" className="ghost-button" onClick={exportCalibration}>
-                Export
-              </button>
-            </div>
+            {venue.id === 'daegu' ? (
+              <>
+                <p className="eyebrow">Anchor Calibration</p>
+                <h2>{currentDaeguAnchorTask ? currentDaeguAnchorTask.label : '완료'}</h2>
+                <p className="muted">
+                  표시된 좌석의 실제 중심을 이미지에서 클릭하세요. 각 행의 왼쪽 끝, 중간, 오른쪽 끝을 기준점으로 저장하고 나머지는 곡선으로 자동 보간합니다.
+                </p>
+                {currentDaeguAnchorTask && (
+                  <div className="anchor-target">
+                    <strong>{currentDaeguAnchorTask.anchorLabel}</strong>
+                    <span>{currentDaeguAnchorTask.anchorIndex + 1} / {currentDaeguAnchorTask.anchorTotal}</span>
+                  </div>
+                )}
+                <div className="calibration-progress">
+                  {Object.keys(daeguAnchorCalibration).length} / {DAEGU_ANCHOR_TASKS.length} anchors · {daeguCompletedRows} / {DAEGU_ROW_GROUPS.length} rows
+                </div>
+                <div className="calibration-actions calibration-actions-wide">
+                  <button type="button" className="ghost-button" onClick={() => setDaeguAnchorIndex((value) => Math.max(value - 1, 0))}>
+                    Prev
+                  </button>
+                  <button type="button" className="ghost-button" onClick={() => setDaeguAnchorIndex((value) => Math.min(value + 1, DAEGU_ANCHOR_TASKS.length - 1))}>
+                    Next
+                  </button>
+                  <button type="button" className="ghost-button" onClick={exportDaeguAnchors}>
+                    Anchors
+                  </button>
+                  <button type="button" className="ghost-button" onClick={exportCalibration}>
+                    Export
+                  </button>
+                  <button type="button" className="ghost-button" onClick={clearDaeguAnchors}>
+                    Clear
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="eyebrow">Calibration</p>
+                <h2>{currentCalibrationSeat ? seatDisplayName(currentCalibrationSeat.seatId, seatPointById) : '완료'}</h2>
+                <p className="muted">
+                  이미지에서 현재 좌석의 중심을 클릭하면 좌표가 저장되고 다음 좌석으로 넘어갑니다.
+                </p>
+                <div className="calibration-progress">
+                  {Object.keys(calibration).length} / {seatSequence.length} saved
+                </div>
+                <div className="calibration-actions">
+                  <button type="button" className="ghost-button" onClick={() => setCalibrationIndex((value) => Math.max(value - 1, 0))}>
+                    Prev
+                  </button>
+                  <button type="button" className="ghost-button" onClick={() => setCalibrationIndex((value) => Math.min(value + 1, seatSequence.length - 1))}>
+                    Next
+                  </button>
+                  <button type="button" className="ghost-button" onClick={exportCalibration}>
+                    Export
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
